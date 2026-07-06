@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>SAP Metadata Discovery</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+</head>
+<body>
+  <section id="landing-view" class="landing-view">
+    <h1 class="app-title">SAP Metadata Discovery</h1>
+    <p class="landing-subtitle">
+      Busque o nome técnico, a descrição ou a área de negócio de uma tabela SAP
+      (ex: MARA, VBAK, financeiro, vendas...).
+    </p>
+    <div id="search-widget" class="search-card">
+      <div class="search-input-row">
+        <input
+          type="text"
+          id="search-input"
+          class="search-input"
+          placeholder="Buscar tabela SAP (ex: MARA, VBAK, FINANCEIRO...)"
+          autocomplete="off"
+        />
+        <button id="btn-search" class="primary-button search-submit-button" type="button">
+          Buscar
+        </button>
+      </div>
+      <div id="search-results-loading" class="search-results-loading hidden">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Buscando tabelas...</span>
+      </div>
+      <ul id="autocomplete-list" class="autocomplete-list hidden"></ul>
+      <p id="search-error" class="search-error hidden"></p>
+    </div>
+    <div id="search-loading" class="loading-card hidden">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Buscando informações da tabela...</span>
+    </div>
+  </section>
+
+  <section id="summary-view" class="results-view hidden">
+    <header class="app-header">
+      <button id="btn-new-search" class="back-button" type="button">← Nova busca</button>
+      <h1 class="app-title-compact">SAP Metadata Discovery</h1>
+    </header>
+
+    <main class="app-main">
+      <div id="summary-loading" class="loading-card hidden">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Carregando metadados...</span>
+      </div>
+
+      <section id="summary-card" class="summary-card hidden">
+        <div class="page-title-block">
+          <h2 id="page-table-name" class="page-table-name"></h2>
+          <p id="page-table-description" class="page-table-description"></p>
+        </div>
+
+        <div id="summary-facts" class="summary-facts"></div>
+
+        <p class="data-source-note">
+          Fonte: tabelas SAP <strong>DD02L</strong>/<strong>DD02T</strong> (cabeçalho e
+          descrição) + <strong>DD03L</strong> (tamanho do registro) + <strong>DD09L</strong>
+          (categoria de volume e classe de dados).
+        </p>
+
+        <div class="summary-actions">
+          <button id="btn-view-details" class="primary-button" type="button">
+            Ver campos e detalhes →
+          </button>
+          <button id="btn-export-technical" class="toolbar-button">Exportar técnico (JSON)</button>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <section id="details-view" class="results-view hidden">
+    <header class="app-header">
+      <button id="btn-back-to-summary" class="back-button" type="button">← Voltar ao resumo</button>
+      <h1 id="details-table-name" class="app-title-compact"></h1>
+    </header>
+
+    <main class="app-main">
+      <section id="result" class="result">
+        <nav class="tabs" role="tablist">
+          <button class="tab-button active" data-tab="dicionario" role="tab">Dicionário</button>
+          <button class="tab-button" data-tab="linhagem" role="tab">Linhagem</button>
+          <button class="tab-button" data-tab="json" role="tab">Dados Brutos</button>
+        </nav>
+
+        <div id="tab-dicionario" class="tab-content">
+          <p class="data-source-note">
+            Fonte: tabelas SAP <strong>DD03L</strong> (campos) + <strong>DD04T</strong>
+            (descrições) + <strong>DD07T</strong> (valores fixos, ver "Ver valores") +
+            <strong>DD08L</strong>/<strong>DD05S</strong> (tabela de checagem, tag 🔗).
+          </p>
+          <div class="tab-toolbar">
+            <button id="btn-export-fields" class="toolbar-button">Exportar campos (JSON)</button>
+          </div>
+          <div class="table-scroll">
+            <table id="columns-table" class="columns-table">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Chave</th>
+                  <th>Tipo</th>
+                  <th>Descrição de negócio</th>
+                  <th>Domínio</th>
+                </tr>
+              </thead>
+              <tbody id="columns-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-linhagem" class="tab-content hidden">
+          <p class="data-source-note">
+            Fonte: tabelas SAP <strong>DD08L</strong> (tabela de checagem por campo) +
+            <strong>DD05S</strong> (mapeamento campo a campo por posição) +
+            <strong>DD02L</strong>/<strong>DD09L</strong> (para o grau de importância).
+          </p>
+          <div class="tab-toolbar lineage-toolbar">
+            <label class="importance-toggle">
+              <input type="checkbox" id="chk-show-all-lineage" />
+              <span id="lineage-toggle-label">Mostrar todas as tabelas</span>
+            </label>
+            <button id="btn-export-lineage" class="toolbar-button">Exportar linhagem/join (JSON)</button>
+          </div>
+          <div id="canvas-linhagem" class="canvas-linhagem"></div>
+          <p class="canvas-hint">Clique em uma tabela do grafo para abrir os detalhes dela.</p>
+        </div>
+
+        <div id="tab-json" class="tab-content hidden">
+          <div class="json-toolbar">
+            <button id="btn-copy" class="toolbar-button">Copiar</button>
+            <button id="btn-download" class="toolbar-button">Baixar completo (JSON)</button>
+            <button id="btn-export-pks" class="toolbar-button">Exportar PKs (JSON)</button>
+          </div>
+          <pre class="json-pre"><code id="json-code" class="language-json"></code></pre>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <dialog id="enum-modal" class="enum-modal">
+    <form method="dialog">
+      <h2 id="enum-modal-title" class="enum-modal-title"></h2>
+      <p id="enum-modal-source" class="enum-modal-source"></p>
+      <dl id="enum-modal-body" class="enum-modal-body"></dl>
+      <button class="toolbar-button">Fechar</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
