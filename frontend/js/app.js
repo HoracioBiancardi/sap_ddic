@@ -1,7 +1,9 @@
 /**
- * Application entrypoint: wires search, three-screen navigation (landing ->
- * summary -> details), dictionary table, lineage graph and JSON viewer
- * together.
+ * Application entrypoint: wires the persistent app shell (sidebar nav +
+ * topbar search + swappable content view) together — search, the field
+ * dictionary table, the lineage graph, the JSON viewer and the dbt
+ * generator all live as views inside one shell, switched by icon nav
+ * instead of by navigating through a sequence of full-page screens.
  *
  * Search is deliberately explicit (Enter / "Buscar" button), not
  * live-as-you-type: this environment's HANA Cloud connection has a ~2-5s
@@ -10,38 +12,53 @@
  * would just fire a slow request per keystroke pause and feel perpetually
  * behind. One intentional search per explicit action reads as "the app is
  * working" instead of "the app is stuck".
+ *
+ * Selecting a table never forces a screen jump: if the user is already
+ * inside a table-scoped view (Dicionário, Linhagem, ...), picking a new
+ * table re-renders that same view for the new table instead of resetting
+ * to the summary. Only the very first table of a session (coming from the
+ * home/search view) defaults to "Resumo".
  */
 
 import { getTable, searchTables } from "./api.js";
+import { generateInitialDbtArtifacts, initDbtGenerator, resetDbtGenerator } from "./dbtGenerator.js";
 import { initExportButtons } from "./exports.js";
 import { renderLineageGraph } from "./graph.js";
 import { initJsonToolbar, renderJson } from "./jsonViewer.js";
 import { renderColumnsTable, renderEnumModal, renderSummary } from "./render.js";
 import { state } from "./state.js";
-import { initTabs } from "./tabs.js";
 import {
   clearSearchError,
+  enableTableViews,
+  getActiveView,
   hideSearchLoading,
-  hideSummaryLoading,
-  showDetails,
-  showLanding,
+  hideTableFetchLoading,
+  initBackButton,
+  initNav,
+  resetToHome,
+  setBackAvailable,
+  setTopbarTable,
   showSearchError,
   showSearchLoading,
-  showSummary,
-  showSummaryLoading,
+  showTableFetchLoading,
+  showView,
 } from "./views.js";
 
 const searchInput = document.getElementById("search-input");
 const btnSearch = document.getElementById("btn-search");
 const searchResultsList = document.getElementById("autocomplete-list");
-const searchResultsLoading = document.getElementById("search-results-loading");
-const btnNewSearch = document.getElementById("btn-new-search");
-const btnViewDetails = document.getElementById("btn-view-details");
-const btnBackToSummary = document.getElementById("btn-back-to-summary");
 const chkShowAllLineage = document.getElementById("chk-show-all-lineage");
 const lineageToggleLabel = document.getElementById("lineage-toggle-label");
+const navHomeItem = document.querySelector('.nav-item[data-view="home"]');
 
 let lineageRendered = false;
+let dbtRendered = false;
+
+// Stack of table names visited before drilling into a related table (via a
+// lineage node or a dictionary 🔗 check-table tag), so the "← Voltar" button
+// can step back one table at a time. A fresh search (picking a result from
+// the search box) starts a new browsing session and clears it.
+let tableHistory = [];
 
 function renderSearchResults(results) {
   if (results.length === 0) {
@@ -65,6 +82,8 @@ function renderSearchResults(results) {
     item.addEventListener("click", () => {
       searchInput.value = item.dataset.tableName;
       searchResultsList.classList.add("hidden");
+      tableHistory = [];
+      setBackAvailable(false);
       selectTable(item.dataset.tableName);
     });
   });
@@ -78,7 +97,7 @@ async function performSearch() {
 
   clearSearchError();
   renderSearchResults([]);
-  searchResultsLoading.classList.remove("hidden");
+  showSearchLoading();
   btnSearch.disabled = true;
 
   try {
@@ -90,7 +109,7 @@ async function performSearch() {
   } catch (error) {
     showSearchError(error.message || "Erro ao buscar tabelas.");
   } finally {
-    searchResultsLoading.classList.add("hidden");
+    hideSearchLoading();
     btnSearch.disabled = false;
   }
 }
@@ -104,26 +123,39 @@ function updateLineageToggleLabel(contract) {
 }
 
 function goToTable(tableName) {
+  if (state.currentTable) {
+    tableHistory.push(state.currentTable);
+    setBackAvailable(true);
+  }
   searchInput.value = tableName;
   selectTable(tableName);
 }
 
+function goBackTable() {
+  const previousTable = tableHistory.pop();
+  if (!previousTable) return;
+  setBackAvailable(tableHistory.length > 0);
+  searchInput.value = previousTable;
+  selectTable(previousTable);
+}
+
 async function selectTable(tableName) {
   lineageRendered = false;
+  dbtRendered = false;
+  resetDbtGenerator();
   clearSearchError();
   renderSearchResults([]);
-  showSearchLoading();
+  showTableFetchLoading();
   try {
     const contract = await getTable(tableName);
     state.currentTable = tableName;
     state.contract = contract;
 
-    hideSearchLoading();
-    showSummary();
-    hideSummaryLoading();
-    renderSummary(contract);
+    hideTableFetchLoading();
+    setTopbarTable(contract.table_name, contract.business_description);
+    enableTableViews();
 
-    document.getElementById("details-table-name").textContent = contract.table_name;
+    renderSummary(contract);
     renderColumnsTable(
       contract,
       (column) => renderEnumModal(column),
@@ -132,13 +164,18 @@ async function selectTable(tableName) {
     renderJson(contract);
     updateLineageToggleLabel(contract);
 
-    const activeTab = document.querySelector(".tab-button.active")?.dataset.tab;
-    if (activeTab === "linhagem") {
+    const targetView = getActiveView() === "home" ? "resumo" : getActiveView();
+    showView(targetView);
+
+    if (targetView === "linhagem") {
       renderLineageGraph(contract, { showAll: chkShowAllLineage.checked, onNodeClick: goToTable });
       lineageRendered = true;
+    } else if (targetView === "dbt") {
+      generateInitialDbtArtifacts(contract.table_name);
+      dbtRendered = true;
     }
   } catch (error) {
-    hideSearchLoading();
+    hideTableFetchLoading();
     showSearchError(error.message || "Erro ao buscar a tabela.");
   }
 }
@@ -152,31 +189,36 @@ searchInput.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  if (!event.target.closest(".search-card")) {
+  if (!event.target.closest(".topbar-search")) {
     searchResultsList.classList.add("hidden");
   }
 });
 
-btnNewSearch.addEventListener("click", () => {
+navHomeItem.addEventListener("click", () => {
+  if (!state.currentTable) return;
+  state.currentTable = null;
+  state.contract = null;
+  lineageRendered = false;
+  dbtRendered = false;
+  tableHistory = [];
+  resetDbtGenerator();
   searchInput.value = "";
   clearSearchError();
   renderSearchResults([]);
-  showLanding();
+  resetToHome();
   searchInput.focus();
 });
 
-btnViewDetails.addEventListener("click", () => {
-  showDetails();
-});
+initBackButton(goBackTable);
 
-btnBackToSummary.addEventListener("click", () => {
-  showSummary();
-});
-
-initTabs((tabName) => {
-  if (tabName === "linhagem" && !lineageRendered && state.contract) {
+initNav((viewName) => {
+  if (viewName === "linhagem" && !lineageRendered && state.contract) {
     renderLineageGraph(state.contract, { showAll: chkShowAllLineage.checked, onNodeClick: goToTable });
     lineageRendered = true;
+  }
+  if (viewName === "dbt" && !dbtRendered && state.contract) {
+    generateInitialDbtArtifacts(state.contract.table_name);
+    dbtRendered = true;
   }
 });
 
@@ -188,6 +230,6 @@ chkShowAllLineage.addEventListener("change", () => {
 
 initJsonToolbar(() => state.contract);
 initExportButtons(() => state.contract);
+initDbtGenerator(() => state.currentTable);
 
-showLanding();
 searchInput.focus();

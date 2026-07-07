@@ -11,15 +11,16 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 
 from backend.cache import MetadataCache
-from backend.config import get_settings
+from backend.config import Settings, get_settings
 from backend.connection import DatasphereConnector
 from backend.ddic_repository import DDICRepository
+from backend.dbt_generator import generate_dbt_artifacts
 from backend.heuristics import TableClassifier
-from backend.schemas import SearchResult, TableContract
+from backend.schemas import DbtArtifacts, SearchResult, TableContract
 from backend.security import InputValidator
 from backend.service import MetadataService
 
@@ -98,6 +99,54 @@ def get_table(
         The table's metadata contract, served from cache when still fresh.
     """
     return service.get_table_contract(table_name)
+
+
+@app.get("/api/table/{table_name}/dbt", response_model=DbtArtifacts)
+def get_table_dbt_artifacts(
+    table_name: str = Depends(InputValidator.validate_table_name),
+    load_type: str | None = Query(None, pattern="^(FULL|INCREMENTAL)$"),
+    watermark_column: str | None = Query(None),
+    source_name: str | None = Query(None),
+    database: str | None = Query(None),
+    schema: str | None = Query(None),
+    service: MetadataService = Depends(_get_service),
+    settings: Settings = Depends(get_settings),
+) -> DbtArtifacts:
+    """Generates the dbt staging SQL model and sources YAML for a single table.
+
+    Args:
+        table_name: Validated, normalized technical table name.
+        load_type: Optional override for the auto-suggested FULL/INCREMENTAL
+            load strategy.
+        watermark_column: Optional override for the auto-suggested watermark
+            field (informational only; see :mod:`backend.dbt_generator`).
+        source_name: Optional override for the dbt source name used in
+            ``source('name', 'table')``. When omitted, it defaults to the
+            resolved ``schema`` (not ``Settings.dbt_source_name``) — the
+            frontend only exposes a "Schema" input, and this keeps that one
+            field in control of the name that shows up on the SQL's ``FROM``
+            line instead of leaving a fixed source name unrelated to it.
+        database: Optional override for the sources.yml database (defaults
+            to ``Settings.dbt_database``).
+        schema: Optional override for the sources.yml schema (defaults to
+            ``Settings.dbt_schema``).
+        service: Injected metadata service.
+        settings: Injected application settings.
+
+    Returns:
+        The generated SQL/YML plus the resolved load type, watermark and any
+        warnings.
+    """
+    contract = TableContract.model_validate(service.get_table_contract(table_name))
+    resolved_schema = schema or settings.dbt_schema
+    return generate_dbt_artifacts(
+        contract,
+        load_type=load_type,
+        watermark_column=watermark_column,
+        source_name=source_name or resolved_schema,
+        database=database or settings.dbt_database,
+        schema=resolved_schema,
+    )
 
 
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

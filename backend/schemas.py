@@ -137,6 +137,41 @@ class TableContract(BaseModel):
     technical_stats: TechnicalStats
 
 
+class DbtArtifacts(BaseModel):
+    """Generated dbt staging artifacts for a single SAP table.
+
+    Attributes:
+        sql: The ``stg_<table>.sql`` model content. dbt macros (``to_date``,
+            ``nullif_empty``, etc.) are left un-rendered, for the target dbt
+            project's own macro definitions to expand.
+        yml: The ``stg_<table>.yml`` ``sources:`` block content.
+        load_type: The resolved load strategy actually used to build the SQL
+            (``"FULL"`` or ``"INCREMENTAL"``), either auto-suggested or overridden.
+        watermark_column: The suggested (or overridden) SAP field to use as
+            the ingestion watermark for this table upstream, in the bronze
+            layer. Informational only — it does not affect the SQL/YML
+            content, which always relies on the bronze ``dt_ingestao``/
+            ``hash_pk`` audit columns for its own incremental filtering.
+        warnings: Human-readable warnings surfaced during generation (e.g. no
+            watermark candidate found for an incremental table).
+        source_name: The dbt source name actually used (echoed back so the
+            frontend can pre-fill its inputs on the first, override-free call).
+        database: The database actually used in the generated ``sources.yml``.
+        dbt_schema: The schema actually used in the generated ``sources.yml``
+            (named ``dbt_schema`` rather than ``schema`` to avoid shadowing
+            ``BaseModel``'s own attribute of that name).
+    """
+
+    sql: str
+    yml: str
+    load_type: Literal["FULL", "INCREMENTAL"]
+    watermark_column: str | None
+    warnings: list[str]
+    source_name: str
+    database: str
+    dbt_schema: str
+
+
 class SearchResult(BaseModel):
     """A single row returned by ``GET /api/search``.
 

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
         log_level: Minimum log level emitted by the application logger.
         log_to_json: Whether log records should be serialized as JSON.
         log_path: Filesystem path of the log file.
+        dbt_source_name: Default dbt source name used in generated
+            ``source('name', 'table')`` references (Dados Brutos dbt generator).
+        dbt_database: Default database referenced by generated ``sources.yml``.
+        dbt_schema: Default schema referenced by generated ``sources.yml``.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -39,6 +43,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_to_json: bool = False
     log_path: str = "log/pipeline.json"
+    dbt_source_name: str = "sap"
+    dbt_database: str = "BRONZE"
+    dbt_schema: str = "dataspherev2"
 
 
 @lru_cache
