@@ -42,13 +42,22 @@ export async function getTable(tableName) {
  *   watermark_column, warnings, source_name, database, dbt_schema).
  */
 export async function getDbtArtifacts(tableName, overrides = {}) {
-  const params = new URLSearchParams();
-  if (overrides.loadType) params.set("load_type", overrides.loadType);
-  if (overrides.watermarkColumn) params.set("watermark_column", overrides.watermarkColumn);
-  if (overrides.schema) params.set("schema", overrides.schema);
+  const payload = {
+    load_type: overrides.loadType || null,
+    watermark_column: overrides.watermarkColumn || null,
+    dbt_schema: overrides.schema || null,
+    database: overrides.database || null,
+    source_name: overrides.sourceName || null,
+    use_macros: overrides.useMacros !== undefined ? overrides.useMacros : true,
+    sql_template: overrides.sqlTemplate || null,
+    yml_template: overrides.ymlTemplate || null
+  };
 
-  const query = params.toString();
-  const response = await fetch(`/api/table/${encodeURIComponent(tableName)}/dbt${query ? `?${query}` : ""}`);
+  const response = await fetch(`/api/table/${encodeURIComponent(tableName)}/dbt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || `Request failed (${response.status})`);

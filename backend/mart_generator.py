@@ -153,9 +153,59 @@ def _join_condition(join: _ResolvedJoin) -> str:
 
 
 def _build_sql(
-    root_node: str, root_contract: TableContract, joins: list[_ResolvedJoin], model_name: str, source_name: str
+    root_node: str,
+    root_contract: TableContract,
+    joins: list[_ResolvedJoin],
+    model_name: str,
+    source_name: str,
+    use_macros: bool = True,
+    sql_template: str | None = None,
 ) -> str:
     root_alias = root_node.lower()
+
+    col_lines = [
+        f"    {_col_to_macro(column, _map_column_type(column), root_alias, use_macros=use_macros)} AS {_sap_alias(column.column_name)}"
+        for column in root_contract.columns
+    ]
+    for join in joins:
+        alias = join.node_id.lower()
+        col_lines += [
+            f"    {_col_to_macro(column, _map_column_type(column), alias, use_macros=use_macros)} AS {alias}_{_sap_alias(column.column_name)}"
+            for column in join.contract.columns
+        ]
+
+    if use_macros:
+        timestamp_expr = f"{{{{ to_timestamp('{root_alias}.dt_ingestao') }}}}"
+    else:
+        timestamp_expr = f"CAST({root_alias}.dt_ingestao AS TIMESTAMP)"
+
+    audit_block = (
+        ",\n"
+        "\n"
+        "    -- Metadados de Auditoria da Pipeline (da tabela raiz)\n"
+        f"    {timestamp_expr} AS dt_ingestao,\n"
+        f"    {root_alias}.hash_pk AS hash_pk,\n"
+        f"    {root_alias}.source AS source"
+    )
+
+    columns_str = ",\n".join(col_lines) + audit_block
+    source_relation = f"{{{{ source('{source_name}', '{root_contract.table_name.lower()}') }}}} AS {root_alias}"
+
+    join_statements = []
+    for join in joins:
+        alias = join.node_id.lower()
+        table_lower = join.contract.table_name.lower()
+        condition = _join_condition(join)
+        join_statements.append(f"LEFT JOIN {{{{ source('{source_name}', '{table_lower}') }}}} AS {alias}\n    ON {condition}")
+    joins_str = "\n".join(join_statements)
+
+    if sql_template:
+        rendered = sql_template.replace("{model_name}", model_name)\
+                               .replace("{source_name}", source_name)\
+                               .replace("{columns}", columns_str)\
+                               .replace("{source_relation}", source_relation)\
+                               .replace("{joins}", joins_str)
+        return rendered
 
     lines = [
         "{{",
@@ -168,41 +218,60 @@ def _build_sql(
         "",
         "SELECT",
     ]
-
-    col_lines = [
-        f"    {_col_to_macro(column, _map_column_type(column), root_alias)} AS {_sap_alias(column.column_name)}"
-        for column in root_contract.columns
-    ]
-    for join in joins:
-        alias = join.node_id.lower()
-        col_lines += [
-            f"    {_col_to_macro(column, _map_column_type(column), alias)} AS {alias}_{_sap_alias(column.column_name)}"
-            for column in join.contract.columns
-        ]
-
-    audit_block = (
-        ",\n"
-        "\n"
-        "    -- Metadados de Auditoria da Pipeline (da tabela raiz)\n"
-        f"    {{{{ to_timestamp('{root_alias}.dt_ingestao') }}}} AS dt_ingestao,\n"
-        f"    {root_alias}.hash_pk AS hash_pk,\n"
-        f"    {root_alias}.source AS source"
-    )
-    lines.append(",\n".join(col_lines) + audit_block)
+    lines.append(columns_str)
     lines.append("")
-    lines.append(f"FROM {{{{ source('{source_name}', '{root_contract.table_name.lower()}') }}}} AS {root_alias}")
+    lines.append(f"FROM {source_relation}")
 
-    for join in joins:
-        alias = join.node_id.lower()
-        table_lower = join.contract.table_name.lower()
-        condition = _join_condition(join)
-        lines.append(f"LEFT JOIN {{{{ source('{source_name}', '{table_lower}') }}}} AS {alias}")
-        lines.append(f"    ON {condition}")
+    for stmt in join_statements:
+        lines.append(stmt)
 
     return "\n".join(lines) + "\n"
 
 
-def _build_yml(root_node: str, root_contract: TableContract, joins: list[_ResolvedJoin], mart_type: str, model_name: str) -> str:
+def _build_yml(
+    root_node: str,
+    root_contract: TableContract,
+    joins: list[_ResolvedJoin],
+    mart_type: str,
+    model_name: str,
+    yml_template: str | None = None,
+) -> str:
+    out_cols = []
+    for column in root_contract.columns:
+        out_cols.append(f"      - name: {_sap_alias(column.column_name)}")
+        if column.business_description:
+            out_cols.append(f'        description: "{_esc(column.business_description)}"')
+
+    for join in joins:
+        alias = join.node_id.lower()
+        for column in join.contract.columns:
+            out_cols.append(f"      - name: {alias}_{_sap_alias(column.column_name)}")
+            desc = f"[{join.node_id}] {column.business_description}".strip()
+            out_cols.append(f'        description: "{_esc(desc)}"')
+
+    out_cols += [
+        "      - name: dt_ingestao",
+        '        description: "Data e hora da ingestão na bronze (tabela raiz)"',
+        "      - name: hash_pk",
+        '        description: "Chave primária MD5 gerada artificialmente para identificação única do registro (tabela raiz)"',
+        "      - name: source",
+        '        description: "Identificador da fonte dos dados (tabela raiz)"',
+    ]
+    columns_str = "\n".join(out_cols)
+
+    if yml_template:
+        role_label = "Fato" if mart_type == "FCT" else "Dimensão"
+        joined_names = ", ".join(join.node_id for join in joins)
+        description = (
+            f"[{role_label}] {root_contract.business_description} — junta {joined_names}."
+            if joins
+            else f"[{role_label}] {root_contract.business_description}"
+        )
+        rendered = yml_template.replace("{model_name}", model_name)\
+                               .replace("{description}", description)\
+                               .replace("{columns}", columns_str)
+        return rendered
+
     role_label = "Fato" if mart_type == "FCT" else "Dimensão"
     joined_names = ", ".join(join.node_id for join in joins)
     description = (
@@ -219,28 +288,7 @@ def _build_yml(root_node: str, root_contract: TableContract, joins: list[_Resolv
         f'    description: "{_esc(description)}"',
         "    columns:",
     ]
-
-    for column in root_contract.columns:
-        out.append(f"      - name: {_sap_alias(column.column_name)}")
-        if column.business_description:
-            out.append(f'        description: "{_esc(column.business_description)}"')
-
-    for join in joins:
-        alias = join.node_id.lower()
-        for column in join.contract.columns:
-            out.append(f"      - name: {alias}_{_sap_alias(column.column_name)}")
-            desc = f"[{join.node_id}] {column.business_description}".strip()
-            out.append(f'        description: "{_esc(desc)}"')
-
-    out += [
-        "      - name: dt_ingestao",
-        '        description: "Data e hora da ingestão na bronze (tabela raiz)"',
-        "      - name: hash_pk",
-        '        description: "Chave primária MD5 gerada artificialmente para identificação única do registro (tabela raiz)"',
-        "      - name: source",
-        '        description: "Identificador da fonte dos dados (tabela raiz)"',
-    ]
-
+    out += out_cols
     return "\n".join(out) + "\n"
 
 
@@ -329,39 +377,30 @@ def generate_mart_artifacts(
     source_name: str = "sap",
     database: str = "BRONZE",
     schema: str = "dataspherev2",
+    use_macros: bool = True,
+    sql_template: str | None = None,
+    yml_template: str | None = None,
 ) -> MartArtifacts:
     """Builds a fact/dimension dbt mart model from an arbitrary graph of
     table boxes and their join wiring.
 
     Args:
         nodes: Every box in the canvas, keyed by ``node_id`` — full metadata
-            contracts, as returned by
-            :meth:`backend.service.MetadataService.get_table_contract`. The
-            same underlying table may appear more than once under different
-            node IDs (see the module docstring).
+            contracts.
         joins: Every edge connecting the boxes (auto-detected or manual),
             referencing ``node_id``s.
         root_node: Which box anchors the SQL's ``FROM`` clause. Every other
-            box in ``nodes`` must be reachable from it by following
-            ``joins`` in either direction.
-        mart_type: Overrides the auto-suggested ``FCT``/``DIM`` role. Must
-            be one of those two values if given.
+            box in ``nodes`` must be reachable from it.
+        mart_type: Overrides the auto-suggested ``FCT``/``DIM`` role.
         source_name: dbt source name used in ``source('name', 'table')``.
-        database: Database referenced by the generated documentation
-            (informational only — the SQL itself only references sources by
-            name).
-        schema: Schema referenced by the generated documentation
-            (informational only, same reason).
+        database: Database referenced by the generated documentation.
+        schema: Schema referenced by the generated documentation.
+        use_macros: Whether to use dbt macros or standard ANSI SQL casts.
+        sql_template: Optional custom mart SQL template.
+        yml_template: Optional custom mart YML template.
 
     Returns:
-        The generated SQL/YML/documentation plus the resolved mart type and
-        any warnings (e.g. a joined box is unusually wide).
-
-    Raises:
-        ValueError: If ``mart_type`` is given but isn't ``FCT`` or ``DIM``,
-            if ``root_node`` isn't in ``nodes``, if a join references a node
-            ID outside ``nodes``, or if any box isn't connected to
-            ``root_node`` by the given ``joins``.
+        The generated SQL/YML/documentation.
     """
     root_contract = nodes.get(root_node)
     if root_contract is None:
@@ -375,8 +414,8 @@ def generate_mart_artifacts(
 
     model_name = f"{resolved_mart_type.lower()}_{root_node.lower()}"
 
-    sql = _build_sql(root_node, root_contract, ordered_joins, model_name, source_name)
-    yml = _build_yml(root_node, root_contract, ordered_joins, resolved_mart_type, model_name)
+    sql = _build_sql(root_node, root_contract, ordered_joins, model_name, source_name, use_macros, sql_template)
+    yml = _build_yml(root_node, root_contract, ordered_joins, resolved_mart_type, model_name, yml_template)
     documentation = _build_documentation(root_node, root_contract, ordered_joins, resolved_mart_type, model_name, sql)
 
     warnings = [

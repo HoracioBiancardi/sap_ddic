@@ -111,29 +111,108 @@ def suggest_watermark(contract: TableContract) -> str | None:
     return None
 
 
-def _col_to_macro(column: Column, target_type: str, alias: str | None = None) -> str:
+def _col_to_macro(column: Column, target_type: str, alias: str | None = None, use_macros: bool = True) -> str:
     """Returns the dbt macro expression for a column based on its target type.
 
     Args:
         column: The column to render.
         target_type: Result of :func:`_map_column_type` for this column.
-        alias: Optional table alias to qualify the field with (``{alias}.
-            {field}``), used by :mod:`backend.mart_generator` when a column
-            comes from a JOINed table rather than the query's only source.
+        alias: Optional table alias to qualify the field with.
+        use_macros: Whether to use dbt macros or standard ANSI SQL casts.
     """
     raw_field = _quote_if_needed(column.column_name)
     field = f"{alias}.{raw_field}" if alias else raw_field
-    if target_type == "DATE":
-        return f"{{{{ to_date('{field}') }}}}"
-    if target_type.startswith("DECIMAL"):
-        return f"{{{{ to_decimal_nullif('{field}') }}}}"
-    if target_type == "INTEGER":
-        return f"{{{{ to_integer_nullif('{field}') }}}}"
-    return f"{{{{ nullif_empty('{field}') }}}}"
+    if use_macros:
+        if target_type == "DATE":
+            return f"{{{{ to_date('{field}') }}}}"
+        if target_type.startswith("DECIMAL"):
+            return f"{{{{ to_decimal_nullif('{field}') }}}}"
+        if target_type == "INTEGER":
+            return f"{{{{ to_integer_nullif('{field}') }}}}"
+        return f"{{{{ nullif_empty('{field}') }}}}"
+    else:
+        if target_type == "DATE":
+            return f"CAST(NULLIF(TRIM({field}), '') AS DATE)"
+        if target_type.startswith("DECIMAL"):
+            return f"CAST(NULLIF(TRIM({field}), '') AS {target_type})"
+        if target_type == "INTEGER":
+            return f"CAST(NULLIF(TRIM({field}), '') AS INTEGER)"
+        return f"NULLIF(TRIM({field}), '')"
 
 
-def _build_sql(contract: TableContract, load_type: str, source_name: str) -> str:
+def _build_sql(contract: TableContract, load_type: str, source_name: str, use_macros: bool = True, sql_template: str | None = None) -> str:
     table_name = contract.table_name.lower()
+    
+    col_lines = [
+        f"    {_col_to_macro(column, _map_column_type(column), use_macros=use_macros)} AS {_sap_alias(column.column_name)}"
+        for column in contract.columns
+    ]
+    
+    if use_macros:
+        timestamp_expr = "{{ to_timestamp('dt_ingestao') }}"
+    else:
+        timestamp_expr = "CAST(dt_ingestao AS TIMESTAMP)"
+
+    if sql_template:
+        materialized = "incremental" if load_type == "INCREMENTAL" else "table"
+        source_relation = f"{{{{ source('{source_name}', '{table_name}') }}}}"
+        if load_type == "INCREMENTAL":
+            source_relation += " AS silver"
+            
+        config_extra = ""
+        if load_type == "INCREMENTAL":
+            config_extra = '\n        incremental_strategy="delete+insert",\n        unique_key="hash_pk",'
+        else:
+            config_extra = '\n        unique_key="hash_pk",'
+            
+        incremental_header = ""
+        if load_type == "INCREMENTAL":
+            incremental_header = (
+                "{% if is_incremental() %}\n"
+                "    WITH novos_hashes AS (\n"
+                "        SELECT s_tgt.hash_pk\n"
+                f"        FROM {{{{ source('{source_name}', '{table_name}') }}}} AS s_tgt\n"
+                "        WHERE TRY_CONVERT(DATETIME2, s_tgt.dt_ingestao) >= (\n"
+                "                SELECT DATEADD(\n"
+                "                    DAY, -1, MAX(s_src.dt_ingestao)\n"
+                "                ) FROM {{ this }} AS s_src\n"
+                "            )\n"
+                "    )\n"
+                "{% endif %}"
+            )
+            
+        incremental_footer = ""
+        if load_type == "INCREMENTAL":
+            incremental_footer = (
+                "\n    {% if is_incremental() %}\n"
+                "        INNER JOIN novos_hashes AS nhashes ON silver.hash_pk = nhashes.hash_pk\n"
+                "    {% endif %}"
+            )
+            
+        if load_type == "INCREMENTAL":
+            audit_cols = [
+                f"    {timestamp_expr} AS dt_ingestao",
+                "    silver.hash_pk",
+                "    silver.source"
+            ]
+        else:
+            audit_cols = [
+                f"    {timestamp_expr} AS dt_ingestao",
+                "    hash_pk",
+                "    source"
+            ]
+        columns_str = ",\n".join(col_lines + audit_cols)
+        
+        rendered = sql_template.replace("{table_name}", table_name)\
+                               .replace("{source_name}", source_name)\
+                               .replace("{materialized}", materialized)\
+                               .replace("{config_extra}", config_extra)\
+                               .replace("{incremental_header}", incremental_header)\
+                               .replace("{incremental_footer}", incremental_footer)\
+                               .replace("{source_relation}", source_relation)\
+                               .replace("{columns}", columns_str)
+        return rendered
+
     lines: list[str] = []
 
     if load_type == "INCREMENTAL":
@@ -173,13 +252,8 @@ def _build_sql(contract: TableContract, load_type: str, source_name: str) -> str
     lines.append("")
     lines.append("SELECT")
 
-    col_lines = [
-        f"    {_col_to_macro(column, _map_column_type(column))} AS {_sap_alias(column.column_name)}"
-        for column in contract.columns
-    ]
-
     if load_type == "INCREMENTAL":
-        audit_block = ",\n" "    {{ to_timestamp('dt_ingestao') }} AS dt_ingestao,\n" "    silver.hash_pk,\n" "    silver.source"
+        audit_block = f",\n    {timestamp_expr} AS dt_ingestao,\n    silver.hash_pk,\n    silver.source"
         lines.append(",\n".join(col_lines) + audit_block)
         lines += [
             f"FROM {{{{ source('{source_name}', '{table_name}') }}}} AS silver",
@@ -192,7 +266,7 @@ def _build_sql(contract: TableContract, load_type: str, source_name: str) -> str
             ",\n"
             "\n"
             "    -- Metadados de Auditoria da Pipeline\n"
-            "    {{ to_timestamp('dt_ingestao') }} AS dt_ingestao,\n"
+            f"    {timestamp_expr} AS dt_ingestao,\n"
             "    hash_pk,\n"
             "    source"
         )
@@ -208,10 +282,52 @@ def _esc(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _build_yml(contract: TableContract, load_type: str, source_name: str, database: str, schema: str) -> str:
+def _build_yml(contract: TableContract, load_type: str, source_name: str, database: str, schema: str, yml_template: str | None = None) -> str:
     table_name = contract.table_name.lower()
     description = _esc(contract.business_description)
     materialized = "incremental" if load_type == "INCREMENTAL" else "table"
+
+    pk_columns = [column for column in contract.columns if column.is_primary_key]
+    non_pk_columns = [column for column in contract.columns if not column.is_primary_key]
+
+    out_cols = []
+    if pk_columns:
+        out_cols.append("          # Chaves Primárias / Identificadores")
+        for column in pk_columns:
+            out_cols.append(f"          - name: {_sap_alias(column.column_name)}")
+            if column.business_description:
+                out_cols.append(f'            description: "{_esc(column.business_description)}"')
+
+    for column in non_pk_columns:
+        out_cols.append(f"          - name: {_sap_alias(column.column_name)}")
+        if column.business_description:
+            out_cols.append(f'            description: "{_esc(column.business_description)}"')
+
+    out_cols += [
+        "          # Metadados de Auditoria da Pipeline",
+        '          - name: hash_pk',
+        '            description: "Chave primária MD5 gerada artificialmente para identificação única do registro"',
+        '          - name: dt_ingestao',
+        '            description: "Data e hora da ingestão na bronze"',
+        '          - name: source',
+        '            description: "Identificador da fonte dos dados"',
+    ]
+    columns_str = "\n".join(out_cols)
+
+    if yml_template:
+        config_extra = ""
+        if load_type == "INCREMENTAL":
+            config_extra = 'incremental_strategy: "delete+insert"'
+
+        rendered = yml_template.replace("{source_name}", source_name)\
+                               .replace("{database}", database)\
+                               .replace("{schema}", schema)\
+                               .replace("{table_name}", table_name)\
+                               .replace("{description}", description)\
+                               .replace("{materialized}", materialized)\
+                               .replace("{config_extra}", config_extra)\
+                               .replace("{columns}", columns_str)
+        return rendered
 
     out: list[str] = [
         "sources:",
@@ -231,32 +347,7 @@ def _build_yml(contract: TableContract, load_type: str, source_name: str, databa
     out.append("")
     out.append("        columns:")
 
-    pk_columns = [column for column in contract.columns if column.is_primary_key]
-    non_pk_columns = [column for column in contract.columns if not column.is_primary_key]
-
-    if pk_columns:
-        out.append("          # Chaves Primárias / Identificadores")
-        for column in pk_columns:
-            out.append(f"          - name: {_sap_alias(column.column_name)}")
-            if column.business_description:
-                out.append(f'            description: "{_esc(column.business_description)}"')
-
-    for column in non_pk_columns:
-        out.append(f"          - name: {_sap_alias(column.column_name)}")
-        if column.business_description:
-            out.append(f'            description: "{_esc(column.business_description)}"')
-
-    out += [
-        "",
-        "          # Metadados de Auditoria da Pipeline",
-        '          - name: hash_pk',
-        '            description: "Chave primária MD5 gerada artificialmente para identificação única do registro"',
-        '          - name: dt_ingestao',
-        '            description: "Data e hora da ingestão na bronze"',
-        '          - name: source',
-        '            description: "Identificador da fonte dos dados"',
-    ]
-
+    out += out_cols
     return "\n".join(out) + "\n"
 
 
@@ -268,6 +359,9 @@ def generate_dbt_artifacts(
     source_name: str = "sap",
     database: str = "BRONZE",
     schema: str = "dataspherev2",
+    use_macros: bool = True,
+    sql_template: str | None = None,
+    yml_template: str | None = None,
 ) -> DbtArtifacts:
     """Builds the dbt staging SQL model and sources YAML for a single table.
 
@@ -276,20 +370,16 @@ def generate_dbt_artifacts(
         load_type: Overrides the auto-suggested ``FULL``/``INCREMENTAL``
             strategy. Must be one of those two values if given.
         watermark_column: Overrides the auto-suggested watermark field.
-            Informational only — see module docstring.
-        source_name: dbt source name used in ``source('name', 'table')`` —
-            must match the ``sources.yml`` block's own ``name:``, so callers
-            that don't have a dedicated source-name input should default it
-            to ``schema`` (see :func:`backend.main.get_table_dbt_artifacts`).
+        source_name: dbt source name used in ``source('name', 'table')``.
         database: Database referenced by the generated ``sources.yml``.
         schema: Schema referenced by the generated ``sources.yml``.
+        use_macros: Whether to use dbt macros or standard ANSI SQL casts.
+        sql_template: Optional custom staging SQL template.
+        yml_template: Optional custom staging YML template.
 
     Returns:
         The generated SQL/YML plus the resolved load type, watermark and any
-        warnings (e.g. no watermark candidate found for an incremental table).
-
-    Raises:
-        ValueError: If ``load_type`` is given but isn't ``FULL`` or ``INCREMENTAL``.
+        warnings.
     """
     resolved_load_type = (load_type or suggest_load_type(contract)).upper()
     if resolved_load_type not in ("FULL", "INCREMENTAL"):
@@ -306,8 +396,8 @@ def generate_dbt_artifacts(
         )
 
     return DbtArtifacts(
-        sql=_build_sql(contract, resolved_load_type, source_name),
-        yml=_build_yml(contract, resolved_load_type, source_name, database, schema),
+        sql=_build_sql(contract, resolved_load_type, source_name, use_macros, sql_template),
+        yml=_build_yml(contract, resolved_load_type, source_name, database, schema, yml_template),
         load_type=resolved_load_type,
         watermark_column=resolved_watermark,
         warnings=warnings,

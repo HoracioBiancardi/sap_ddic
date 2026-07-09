@@ -21,7 +21,7 @@ from backend.ddic_repository import DDICRepository
 from backend.dbt_generator import generate_dbt_artifacts
 from backend.heuristics import TableClassifier
 from backend.mart_generator import generate_mart_artifacts
-from backend.schemas import DbtArtifacts, MartArtifacts, MartGenerateRequest, SearchResult, TableContract
+from backend.schemas import DbtArtifacts, DbtGenerateRequest, MartArtifacts, MartGenerateRequest, SearchResult, TableContract
 from backend.security import InputValidator
 from backend.service import MetadataService
 
@@ -102,35 +102,18 @@ def get_table(
     return service.get_table_contract(table_name)
 
 
-@app.get("/api/table/{table_name}/dbt", response_model=DbtArtifacts)
+@app.post("/api/table/{table_name}/dbt", response_model=DbtArtifacts)
 def get_table_dbt_artifacts(
+    request: DbtGenerateRequest,
     table_name: str = Depends(InputValidator.validate_table_name),
-    load_type: str | None = Query(None, pattern="^(FULL|INCREMENTAL)$"),
-    watermark_column: str | None = Query(None),
-    source_name: str | None = Query(None),
-    database: str | None = Query(None),
-    schema: str | None = Query(None),
     service: MetadataService = Depends(_get_service),
     settings: Settings = Depends(get_settings),
 ) -> DbtArtifacts:
     """Generates the dbt staging SQL model and sources YAML for a single table.
 
     Args:
+        request: The dbt generation parameters (load type, templates, etc.).
         table_name: Validated, normalized technical table name.
-        load_type: Optional override for the auto-suggested FULL/INCREMENTAL
-            load strategy.
-        watermark_column: Optional override for the auto-suggested watermark
-            field (informational only; see :mod:`backend.dbt_generator`).
-        source_name: Optional override for the dbt source name used in
-            ``source('name', 'table')``. When omitted, it defaults to the
-            resolved ``schema`` (not ``Settings.dbt_source_name``) — the
-            frontend only exposes a "Schema" input, and this keeps that one
-            field in control of the name that shows up on the SQL's ``FROM``
-            line instead of leaving a fixed source name unrelated to it.
-        database: Optional override for the sources.yml database (defaults
-            to ``Settings.dbt_database``).
-        schema: Optional override for the sources.yml schema (defaults to
-            ``Settings.dbt_schema``).
         service: Injected metadata service.
         settings: Injected application settings.
 
@@ -139,14 +122,17 @@ def get_table_dbt_artifacts(
         warnings.
     """
     contract = TableContract.model_validate(service.get_table_contract(table_name))
-    resolved_schema = schema or settings.dbt_schema
+    resolved_schema = request.dbt_schema or settings.dbt_schema
     return generate_dbt_artifacts(
         contract,
-        load_type=load_type,
-        watermark_column=watermark_column,
-        source_name=source_name or resolved_schema,
-        database=database or settings.dbt_database,
+        load_type=request.load_type,
+        watermark_column=request.watermark_column,
+        source_name=request.source_name or resolved_schema,
+        database=request.database or settings.dbt_database,
         schema=resolved_schema,
+        use_macros=request.use_macros,
+        sql_template=request.sql_template,
+        yml_template=request.yml_template,
     )
 
 
@@ -205,6 +191,9 @@ def generate_mart(
             source_name=request.source_name or resolved_schema,
             database=request.database or settings.dbt_database,
             schema=resolved_schema,
+            use_macros=request.use_macros,
+            sql_template=request.sql_template,
+            yml_template=request.yml_template,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

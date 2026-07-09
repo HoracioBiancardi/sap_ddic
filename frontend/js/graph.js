@@ -78,7 +78,7 @@ export function renderLineageGraph(contract, options = {}) {
   const neutral = cssVar("--text-muted");
   const textPrimary = cssVar("--text-primary");
   const surface = cssVar("--surface-2");
-  const textAccent = cssVar("--cat-blue");
+  const bgSolid = cssVar("--bg-solid") || "#040f06";
 
   const nodes = [
     {
@@ -86,10 +86,10 @@ export function renderLineageGraph(contract, options = {}) {
       label: contract.table_name,
       title: `${contract.table_name} — tabela atual`,
       color: { background: accent, border: accent, highlight: { background: accent, border: textPrimary } },
-      font: { color: "#04120a", size: 16, bold: { color: "#04120a" } },
+      font: { color: bgSolid, size: 16, bold: { color: bgSolid } },
       shape: "box",
       borderWidth: 2,
-      shapeProperties: { borderRadius: 8 },
+      shapeProperties: { borderRadius: 2 },
       margin: 12,
     },
   ];
@@ -108,7 +108,7 @@ export function renderLineageGraph(contract, options = {}) {
       font: { color: textPrimary, size: 13 },
       shape: "box",
       borderWidth: 2,
-      shapeProperties: { borderRadius: 8 },
+      shapeProperties: { borderRadius: 2 },
       margin: 10,
     });
     edges.push({
@@ -143,7 +143,7 @@ export function renderLineageGraph(contract, options = {}) {
         font: { color: style.fontColor, size: style.fontSize },
         shape: "box",
         borderWidth: style.borderWidth,
-        shapeProperties: { borderDashes: style.dashes, borderRadius: 8 },
+        shapeProperties: { borderDashes: style.dashes, borderRadius: 2 },
         margin: 10,
       });
     }

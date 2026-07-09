@@ -154,14 +154,14 @@ function nodeToVisNode(info) {
     label: info.nodeId === info.tableName ? info.nodeId : `${info.nodeId}\n(${info.tableName})`,
     title: isRoot ? `${info.nodeId} — tabela raiz (FROM)` : info.nodeId,
     shape: "box",
-    shapeProperties: { borderRadius: 8 },
+    shapeProperties: { borderRadius: 2 },
     margin: 12,
     borderWidth: isRoot ? 3 : isPending ? 3 : 1,
     color: {
       background: isRoot ? cssVar("--accent") : cssVar("--surface-2"),
       border: isPending ? cssVar("--accent") : isRoot ? cssVar("--accent") : cssVar("--cat-blue"),
     },
-    font: { color: isRoot ? "#04120a" : cssVar("--text-primary"), size: 14, face: "ui-monospace, monospace" },
+    font: { color: isRoot ? (cssVar("--bg-solid") || "#040f06") : cssVar("--text-primary"), size: 14, face: "ui-monospace, monospace" },
   };
 }
 
@@ -593,6 +593,10 @@ async function generate() {
   docOutputBox.classList.add("hidden");
   clearMessage();
 
+  const defaultDatabase = localStorage.getItem("dbt_database") || "BRONZE";
+  const defaultSchema = localStorage.getItem("dbt_schema") || "dataspherev2";
+  const useMacros = localStorage.getItem("dbt_use_macros") !== "false";
+
   const payload = {
     tables: Array.from(canvasNodes.values()).map((n) => ({ node_id: n.nodeId, table_name: n.tableName })),
     root_node: rootNodeId,
@@ -605,7 +609,11 @@ async function generate() {
       auto_detected: j.autoDetected,
     })),
     mart_type: martTypeSelect.value,
-    dbt_schema: schemaInput.value.trim() || null,
+    database: defaultDatabase,
+    dbt_schema: schemaInput.value.trim() || defaultSchema,
+    use_macros: useMacros,
+    sql_template: localStorage.getItem("temp_mart_sql") || null,
+    yml_template: localStorage.getItem("temp_mart_yml") || null,
   };
 
   try {
@@ -665,6 +673,9 @@ function clearCanvas() {
  * once at startup.
  */
 export function initMartGenerator() {
+  const defaultSchema = localStorage.getItem("dbt_schema") || "dataspherev2";
+  schemaInput.value = defaultSchema;
+
   btnAdd.addEventListener("click", performAdd);
   addInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") performAdd();

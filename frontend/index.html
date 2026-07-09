@@ -1,11 +1,15 @@
 <!doctype html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
   <title>SAP Metadata Discovery</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
@@ -14,32 +18,56 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
-<body>
+
+<body class="crt-enabled flicker-enabled theme-green">
+  <div class="crt-overlay"></div>
+
   <div class="app-shell">
     <aside class="sidebar" aria-label="Navegação principal">
-      <div class="sidebar-logo" aria-hidden="true">❯_</div>
+      <div class="sidebar-logo" aria-hidden="true">❯_ SWORDPOWER</div>
       <nav class="sidebar-nav">
-        <button class="nav-item active" data-view="home" data-tooltip="Início / Nova busca" type="button" aria-label="Início">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <button class="nav-item active" data-view="home" data-tooltip="Início / Nova busca" type="button"
+          aria-label="Início">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span class="nav-label">[1] BUSCA</span>
         </button>
-        <button class="nav-item" data-view="mart" data-tooltip="Fato/Dimensão" type="button" aria-label="Fato/Dimensão">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="10" rx="1.5"/><rect x="11" y="3" width="10" height="10" rx="1.5"/></svg>
-        </button>
-        <div class="nav-divider"></div>
-        <button class="nav-item" data-view="resumo" data-tooltip="Resumo" type="button" aria-label="Resumo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="20" y1="20" x2="20" y2="14"/></svg>
-        </button>
-        <button class="nav-item" data-view="dicionario" data-tooltip="Dicionário de campos" type="button" aria-label="Dicionário">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13.5v15H6a2 2 0 0 0-2 2Z"/><path d="M4 19.5A2 2 0 0 0 6 21.5h13.5"/></svg>
-        </button>
-        <button class="nav-item" data-view="linhagem" data-tooltip="Linhagem" type="button" aria-label="Linhagem">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.2 7.1 15.8 11"/><path d="M8.2 16.9 15.8 13"/></svg>
-        </button>
-        <button class="nav-item" data-view="json" data-tooltip="Dados brutos (JSON)" type="button" aria-label="Dados brutos">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 8 4 12 9 16"/><polyline points="15 8 20 12 15 16"/></svg>
+        <button class="nav-item" data-view="dicionario" data-tooltip="Dicionário e metadados" type="button"
+          aria-label="Dicionário">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M4 19.5V5a2 2 0 0 1 2-2h13.5v15H6a2 2 0 0 0-2 2Z" />
+            <path d="M4 19.5A2 2 0 0 0 6 21.5h13.5" />
+          </svg>
+          <span class="nav-label">[2] DICIONÁRIO</span>
         </button>
         <button class="nav-item" data-view="dbt" data-tooltip="Gerador dbt" type="button" aria-label="Gerador dbt">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5a4 4 0 0 1-5.4 5.4L4 17l2 2 5.1-5.1a4 4 0 0 1 5.4-5.4l-2.6 2.6-1.5-.4-.4-1.5Z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M14.5 6.5a4 4 0 0 1-5.4 5.4L4 17l2 2 5.1-5.1a4 4 0 0 1 5.4-5.4l-2.6 2.6-1.5-.4-.4-1.5Z" />
+          </svg>
+          <span class="nav-label">[3] GERADOR dbt</span>
+        </button>
+        <button class="nav-item" data-view="mart" data-tooltip="Fato/Dimensão" type="button" aria-label="Fato/Dimensão">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="3" y="7" width="10" height="10" rx="1.5" />
+            <rect x="11" y="3" width="10" height="10" rx="1.5" />
+          </svg>
+          <span class="nav-label">[4] MODELADOR MART</span>
+        </button>
+        <button class="nav-item" data-view="config" data-tooltip="Ajustes e Aparência" type="button"
+          aria-label="Configurações">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span class="nav-label">[5] CONFIGURAÇÕES</span>
         </button>
       </nav>
     </aside>
@@ -47,10 +75,11 @@
     <div class="app-body">
       <header class="topbar">
         <div class="topbar-brand">
-          <span class="topbar-app-title">SAP Metadata Discovery</span>
+          <span class="topbar-app-title">SAP METADATA DISCOVERY</span>
           <div id="topbar-table-info" class="topbar-table-info hidden">
             <span class="topbar-sep" aria-hidden="true">/</span>
-            <button id="btn-back-table" class="back-button hidden" type="button" title="Voltar para a tabela anterior">← Voltar</button>
+            <button id="btn-back-table" class="back-button hidden" type="button" title="Voltar para a tabela anterior">←
+              VOLTAR</button>
             <span id="topbar-table-name" class="topbar-table-name"></span>
             <span id="topbar-table-description" class="topbar-table-description"></span>
           </div>
@@ -62,32 +91,26 @@
       <main class="content">
         <section id="view-home" class="view view-home">
           <div class="hero">
-            <h1 class="hero-title">SAP Metadata Discovery</h1>
+            <h1 class="hero-title">SAP METADATA DISCOVERY</h1>
             <p class="hero-subtitle">
-              Busque o nome técnico, a descrição ou a área de negócio de uma tabela SAP
-              (ex: MARA, VBAK, financeiro, vendas...) para começar.
+              SISTEMA INICIALIZADO. INSIRA O NOME TÉCNICO, DESCRIÇÃO OU ÁREA DE NEGÓCIO DE UMA TABELA SAP PARA CONSULTA.
             </p>
             <div id="home-search-slot" class="search-slot">
               <div id="search-widget" class="topbar-search">
                 <div class="search-input-row">
-                  <input
-                    type="text"
-                    id="search-input"
-                    class="search-input"
-                    placeholder="Buscar tabela SAP (ex: MARA, VBAK, financeiro...)"
-                    autocomplete="off"
-                  />
+                  <input type="text" id="search-input" class="search-input"
+                    placeholder="BUSCAR TABELA SAP (EX: MARA, VBAK, FINANC...)" autocomplete="off" />
                   <button id="btn-search" class="primary-button search-submit-button" type="button">
-                    Buscar
+                    BUSCAR
                   </button>
                 </div>
                 <div id="search-results-loading" class="search-inline-status hidden">
                   <span class="spinner" aria-hidden="true"></span>
-                  <span>Buscando tabelas...</span>
+                  <span>[!] RETRIEVING TABLES FROM DDIC...</span>
                 </div>
                 <div id="table-fetch-loading" class="search-inline-status hidden">
                   <span class="spinner" aria-hidden="true"></span>
-                  <span>Carregando tabela...</span>
+                  <span>[!] LOADING METADATA CONTRACT...</span>
                 </div>
                 <ul id="autocomplete-list" class="autocomplete-list hidden"></ul>
                 <p id="search-error" class="search-error hidden"></p>
@@ -96,29 +119,33 @@
             <div class="hero-feature-grid">
               <div class="hero-feature">
                 <span class="hero-feature-icon">📊</span>
-                <p class="hero-feature-title">Resumo</p>
-                <p class="hero-feature-desc">Tipo, hierarquia, volume e carga sugerida.</p>
-              </div>
-              <div class="hero-feature">
-                <span class="hero-feature-icon">📖</span>
-                <p class="hero-feature-title">Dicionário</p>
-                <p class="hero-feature-desc">Campos, chaves, domínios e valores fixos.</p>
+                <p class="hero-feature-title">DICIONÁRIO & METADADOS</p>
+                <p class="hero-feature-desc">Ficha técnica, chaves primárias, volumes e dicionário de campos
+                  estruturados.</p>
               </div>
               <div class="hero-feature">
                 <span class="hero-feature-icon">🔗</span>
-                <p class="hero-feature-title">Linhagem</p>
-                <p class="hero-feature-desc">Grafo de tabelas relacionadas e joins.</p>
+                <p class="hero-feature-title">LINHAGEM DE RELACIONAMENTO</p>
+                <p class="hero-feature-desc">Mapeamento explícito de tabelas de texto e check tables com visualização
+                  radar.</p>
               </div>
               <div class="hero-feature">
                 <span class="hero-feature-icon">🛠️</span>
-                <p class="hero-feature-title">Gerador dbt</p>
-                <p class="hero-feature-desc">Modelo de staging SQL + sources.yml.</p>
+                <p class="hero-feature-title">STAGE GENERATOR dbt</p>
+                <p class="hero-feature-desc">Modelos de staging SQL + sources.yml adaptados à sua configuração de
+                  macros.</p>
+              </div>
+              <div class="hero-feature">
+                <span class="hero-feature-icon">📐</span>
+                <p class="hero-feature-title">MODELADOR MART (FATO/DIM)</p>
+                <p class="hero-feature-desc">Desenhador visual de joins dinâmicos para queries desnormalizadas de BI.
+                </p>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="view-resumo" class="view hidden">
+        <section id="view-dicionario" class="view hidden">
           <div class="page-title-block">
             <h2 id="page-table-name" class="page-table-name"></h2>
             <p id="page-table-description" class="page-table-description"></p>
@@ -126,27 +153,12 @@
 
           <div id="summary-facts" class="summary-facts"></div>
 
-          <p class="data-source-note">
-            Fonte: tabelas SAP <strong>DD02L</strong>/<strong>DD02T</strong> (cabeçalho e
-            descrição) + <strong>DD03L</strong> (tamanho do registro) + <strong>DD09L</strong>
-            (categoria de volume e classe de dados).
-          </p>
-
-          <div class="summary-actions">
-            <button id="btn-export-technical" class="toolbar-button">Exportar técnico (JSON)</button>
-            <p class="summary-hint">Use os ícones à esquerda para navegar entre dicionário, linhagem, dados brutos e o gerador dbt.</p>
-          </div>
-        </section>
-
-        <section id="view-dicionario" class="view hidden">
-          <p class="data-source-note">
-            Fonte: tabelas SAP <strong>DD03L</strong> (campos) + <strong>DD04T</strong>
-            (descrições) + <strong>DD07T</strong> (valores fixos, ver "Ver valores") +
-            <strong>DD08L</strong>/<strong>DD05S</strong> (tabela de checagem, tag 🔗).
-          </p>
           <div class="tab-toolbar">
-            <button id="btn-export-fields" class="toolbar-button">Exportar campos (JSON)</button>
+            <button id="btn-export-fields" class="toolbar-button">EXPORTAR CAMPOS (JSON)</button>
+            <button id="btn-export-technical" class="toolbar-button">EXPORTAR FICHA TÉCNICA (JSON)</button>
+            <button id="btn-view-json-modal" class="toolbar-button primary-button-retro">[ VER CONTRATO JSON ]</button>
           </div>
+
           <div class="table-scroll">
             <table id="columns-table" class="columns-table">
               <thead>
@@ -161,48 +173,56 @@
               <tbody id="columns-table-body"></tbody>
             </table>
           </div>
-        </section>
 
-        <section id="view-linhagem" class="view view-linhagem hidden">
-          <p class="data-source-note">
-            Fonte: tabelas SAP <strong>DD08L</strong> (tabela de checagem por campo) +
-            <strong>DD05S</strong> (mapeamento campo a campo por posição) +
-            <strong>DD02L</strong>/<strong>DD09L</strong> (para o grau de importância).
-          </p>
-          <div class="tab-toolbar lineage-toolbar">
-            <div class="lineage-legend">
-              <span class="legend-item"><span class="legend-dot legend-dot--current"></span>Tabela atual</span>
-              <span class="legend-item"><span class="legend-dot legend-dot--high"></span>Importância alta</span>
-              <span class="legend-item"><span class="legend-dot legend-dot--medium"></span>Importância média</span>
-              <span class="legend-item"><span class="legend-dot legend-dot--low"></span>Importância baixa</span>
-              <span class="legend-item"><span class="legend-dot legend-dot--text"></span>Tabela de texto</span>
+          <div class="relations-panel terminal-card">
+            <div class="relations-header">
+              <span class="relations-title">❯ TABELAS RELACIONADAS E LINHAGEM</span>
+              <label class="importance-toggle">
+                <input type="checkbox" id="chk-show-all-lineage" />
+                <span id="lineage-toggle-label">Mostrar todas as tabelas</span>
+              </label>
             </div>
-            <label class="importance-toggle">
-              <input type="checkbox" id="chk-show-all-lineage" />
-              <span id="lineage-toggle-label">Mostrar todas as tabelas</span>
-            </label>
-            <button id="btn-export-lineage" class="toolbar-button">Exportar linhagem/join (JSON)</button>
-          </div>
-          <div id="canvas-linhagem" class="canvas-linhagem"></div>
-          <p class="canvas-hint">Clique em uma tabela do grafo para abrir os detalhes dela.</p>
-        </section>
+            <div class="relations-content">
+              <div class="relations-text">
+                <div class="relation-group">
+                  <span class="relation-label">Tabela de Textos Associada:</span>
+                  <span id="text-table-info" class="relation-value">-</span>
+                </div>
+                <div class="relation-group">
+                  <span class="relation-label">Tabelas de Verificação (Check Tables):</span>
+                  <div id="check-tables-list" class="relation-list">-</div>
+                </div>
+                <div class="relation-group graph-toggle-container">
+                  <button id="btn-toggle-graph" class="toolbar-button">[ MOSTRAR GRAFO RADAR (LINHAGEM) ]</button>
+                  <button id="btn-export-lineage" class="toolbar-button">EXPORTAR LINHAGEM (JSON)</button>
+                </div>
+              </div>
 
-        <section id="view-json" class="view hidden">
-          <div class="json-toolbar">
-            <button id="btn-copy" class="toolbar-button">Copiar</button>
-            <button id="btn-download" class="toolbar-button">Baixar completo (JSON)</button>
-            <button id="btn-export-pks" class="toolbar-button">Exportar PKs (JSON)</button>
+              <div id="canvas-linhagem-container" class="canvas-linhagem-container hidden">
+                <div class="lineage-legend">
+                  <span class="legend-item"><span class="legend-dot legend-dot--current"></span>Tabela atual</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--high"></span>Alta importância</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--medium"></span>Média importância</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--low"></span>Baixa importância</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--text"></span>Tabela texto</span>
+                </div>
+                <div id="canvas-linhagem" class="canvas-linhagem"></div>
+                <p class="canvas-hint">Clique em uma tabela do grafo para abrir os detalhes dela.</p>
+              </div>
+            </div>
           </div>
-          <pre class="json-pre"><code id="json-code" class="language-json"></code></pre>
+
+          <p class="data-source-note">
+            Fonte: tabelas SAP <strong>DD02L/DD02T</strong> (Cabeçalho) + <strong>DD03L/DD04T</strong> (Campos) +
+            <strong>DD07T</strong> (Valores fixos) + <strong>DD08L/DD05S</strong> (Tabelas de verificação) +
+            <strong>DD09L</strong> (Volume e data class).
+          </p>
         </section>
 
         <section id="view-dbt" class="view hidden">
           <p class="data-source-note">
-            Gera o modelo de staging (<strong>SQL</strong>) e o <strong>sources.yml</strong> para dbt a
-            partir dos campos e tipos já extraídos do DDIC, no mesmo padrão do gerador
-            <strong>datasphere_generator_dbt</strong>. As macros (<strong>to_date</strong>,
-            <strong>nullif_empty</strong>, <strong>to_decimal_nullif</strong>,
-            <strong>to_integer_nullif</strong>) devem existir no projeto dbt de destino.
+            Gera o modelo de staging (<strong>SQL</strong>) e o <strong>sources.yml</strong> para dbt a partir dos
+            campos e tipo da tabela, estruturado conforme suas configurações de macros na aba Ajustes.
           </p>
 
           <div class="dbt-options">
@@ -254,16 +274,15 @@
         <section id="view-mart" class="view hidden">
           <p class="data-source-note">
             Monte um modelo de <strong>fato</strong> ou <strong>dimensão</strong> (SQL + yml + documentação)
-            visualmente: busque e adicione tabelas como caixas, ligue-as (relacionamentos com FK real no
-            DDIC são detectados sozinhos; sem FK declarada — como o fluxo de documentos via VBFA — você
-            liga na mão). Direto das fontes <strong>bronze</strong>, sem depender de modelos
-            <strong>stg_</strong> já existirem no projeto dbt.
+            visualmente: adicione tabelas como caixas e conecte-as. Relacionamentos detectados no DDIC são conectados
+            sozinhos.
           </p>
 
           <div class="mart-toolbar">
             <div class="mart-add-table">
               <div class="search-input-row">
-                <input type="text" id="mart-add-input" class="search-input" placeholder="Adicionar tabela ao canvas..." autocomplete="off" />
+                <input type="text" id="mart-add-input" class="search-input" placeholder="Adicionar tabela ao canvas..."
+                  autocomplete="off" />
                 <button id="btn-mart-add" class="primary-button search-submit-button" type="button">Adicionar</button>
               </div>
               <ul id="mart-add-autocomplete" class="autocomplete-list hidden"></ul>
@@ -284,8 +303,8 @@
           </div>
 
           <p class="canvas-hint">
-            Clique numa caixa e depois em outra para ligá-las. Clique duas vezes numa caixa ou numa linha
-            para remover. A caixa com borda mais forte é a tabela raiz (vira o <code>FROM</code> do SQL).
+            Clique numa caixa e depois em outra para ligá-las. Clique duas vezes numa caixa ou numa linha para remover.
+            A caixa com borda brilhante é a tabela raiz (FROM da query).
           </p>
           <div id="canvas-mart" class="canvas-linhagem canvas-mart"></div>
 
@@ -325,9 +344,113 @@
             <pre class="json-pre"><code id="mart-doc-code" class="language-markdown"></code></pre>
           </div>
         </section>
+
+        <section id="view-config" class="view hidden">
+          <div class="page-title-block">
+            <h2>[5] CONFIGURAÇÕES E TEMPLATES</h2>
+            <p>Personalize as definições padrão de geração do dbt e a aparência do terminal Pip-Boy.</p>
+          </div>
+
+          <div class="config-grid">
+            <div class="config-card terminal-card">
+              <h3 class="config-section-title">❯ DEFINIÇÕES DO DBT</h3>
+              <div class="config-form">
+                <label class="dbt-field">
+                  <span>Database Padrão</span>
+                  <input type="text" id="config-dbt-database" placeholder="BRONZE" autocomplete="off" />
+                </label>
+                <label class="dbt-field">
+                  <span>Schema Padrão</span>
+                  <input type="text" id="config-dbt-schema" placeholder="dataspherev2" autocomplete="off" />
+                </label>
+                <label class="config-checkbox-label">
+                  <input type="checkbox" id="config-dbt-use-macros" checked />
+                  <span>Utilizar macros customizadas do dbt (nullif_empty, to_date, etc.)</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="config-card terminal-card">
+              <h3 class="config-section-title">❯ APARÊNCIA TERMINAL CRT</h3>
+              <div class="config-form">
+                <label class="dbt-field">
+                  <span>Tema de Cor</span>
+                  <select id="config-ui-theme">
+                    <option value="green">Verde Fósforo (Classic Pip-Boy)</option>
+                    <option value="amber">Âmbar Radiação (Fallout NV)</option>
+                    <option value="blue">Azul HUD (Fallout 4)</option>
+                    <option value="white">Branco Monocromático (Vintage Terminal)</option>
+                  </select>
+                </label>
+                <label class="config-checkbox-label">
+                  <input type="checkbox" id="config-ui-scanlines" checked />
+                  <span>Ativar linhas de varredura (Scanlines CRT)</span>
+                </label>
+                <label class="config-checkbox-label">
+                  <input type="checkbox" id="config-ui-flicker" checked />
+                  <span>Ativar cintilação sutil da tela (Flicker)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="templates-panel terminal-card">
+            <h3 class="config-section-title">❯ CUSTOMIZAÇÃO DE TEMPLATES</h3>
+            <p class="templates-hint">Ajuste os layouts SQL e YML gerados. Use marcadores entre chaves como
+              <code>{columns}</code>, <code>{table_name}</code>, etc.</p>
+
+            <div class="templates-grid">
+              <div class="template-box">
+                <span class="template-title">Staging SQL Template</span>
+                <textarea id="temp-staging-sql" class="template-textarea" spellcheck="false"></textarea>
+              </div>
+              <div class="template-box">
+                <span class="template-title">Staging YML Template</span>
+                <textarea id="temp-staging-yml" class="template-textarea" spellcheck="false"></textarea>
+              </div>
+              <div class="template-box">
+                <span class="template-title">Mart SQL Template</span>
+                <textarea id="temp-mart-sql" class="template-textarea" spellcheck="false"></textarea>
+              </div>
+              <div class="template-box">
+                <span class="template-title">Mart YML Template</span>
+                <textarea id="temp-mart-yml" class="template-textarea" spellcheck="false"></textarea>
+              </div>
+            </div>
+
+            <div class="templates-actions">
+              <button id="btn-save-config" class="primary-button-retro">SALVAR AJUSTES</button>
+              <button id="btn-reset-templates" class="toolbar-button">RESTAURAR PADRÕES</button>
+              <span id="config-save-status" class="config-status-label hidden">Ajustes salvos com sucesso!</span>
+            </div>
+          </div>
+
+          <div class="macros-panel terminal-card">
+            <h3 class="config-section-title">❯ MACROS DBT DO SAP (REFERÊNCIA)</h3>
+            <p class="templates-hint">Copie o código abaixo e adicione-o na pasta <code>macros/</code> do seu projeto
+              dbt caso utilize a opção "macros do dbt".</p>
+            <pre class="json-pre"><code id="macros-reference-code" class="language-sql"></code></pre>
+          </div>
+        </section>
       </main>
     </div>
   </div>
+
+  <dialog id="json-modal" class="enum-modal json-modal">
+    <form method="dialog">
+      <h2 class="enum-modal-title">Contrato de Metadados JSON</h2>
+      <p class="enum-modal-source">Dados brutos extraídos do Dicionário de Dados SAP (DDIC)</p>
+      <div class="json-toolbar">
+        <button type="button" id="btn-copy" class="toolbar-button">Copiar</button>
+        <button type="button" id="btn-download" class="toolbar-button">Baixar completo (JSON)</button>
+        <button type="button" id="btn-export-pks" class="toolbar-button">Exportar PKs (JSON)</button>
+      </div>
+      <pre class="json-pre"><code id="json-code" class="language-json"></code></pre>
+      <div class="modal-footer">
+        <button class="toolbar-button primary-button-retro">Fechar</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="enum-modal" class="enum-modal">
     <form method="dialog">
@@ -363,4 +486,5 @@
 
   <script type="module" src="js/app.js"></script>
 </body>
+
 </html>

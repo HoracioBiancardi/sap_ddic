@@ -61,13 +61,19 @@ async function generate(tableName, { useCurrentInputs } = {}) {
   clearMessage();
 
   try {
-    const overrides = useCurrentInputs
-      ? {
-          loadType: loadTypeSelect.value,
-          watermarkColumn: watermarkInput.value.trim(),
-          schema: schemaInput.value.trim(),
-        }
-      : {};
+    const defaultSchema = localStorage.getItem("dbt_schema") || "dataspherev2";
+    const defaultDatabase = localStorage.getItem("dbt_database") || "BRONZE";
+    const useMacros = localStorage.getItem("dbt_use_macros") !== "false";
+
+    const overrides = {
+      loadType: useCurrentInputs ? loadTypeSelect.value : null,
+      watermarkColumn: useCurrentInputs ? watermarkInput.value.trim() : null,
+      schema: useCurrentInputs ? schemaInput.value.trim() : defaultSchema,
+      database: defaultDatabase,
+      useMacros: useMacros,
+      sqlTemplate: localStorage.getItem("temp_staging_sql") || null,
+      ymlTemplate: localStorage.getItem("temp_staging_yml") || null,
+    };
     const artifacts = await getDbtArtifacts(tableName, overrides);
     renderArtifacts(artifacts);
   } catch (error) {

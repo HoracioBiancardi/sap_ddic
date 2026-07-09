@@ -136,6 +136,21 @@ class TableContract(BaseModel):
     columns: list[Column]
     technical_stats: TechnicalStats
 
+class DbtGenerateRequest(BaseModel):
+    """Request body for POST /api/table/{table_name}/dbt.
+
+    Allows overriding staging generation properties and custom templates.
+    """
+
+    load_type: str | None = None
+    watermark_column: str | None = None
+    source_name: str | None = None
+    database: str | None = None
+    dbt_schema: str | None = None
+    use_macros: bool = True
+    sql_template: str | None = None
+    yml_template: str | None = None
+
 
 class DbtArtifacts(BaseModel):
     """Generated dbt staging artifacts for a single SAP table.
@@ -271,6 +286,9 @@ class MartGenerateRequest(BaseModel):
     source_name: str | None = None
     database: str | None = None
     dbt_schema: str | None = None
+    use_macros: bool = True
+    sql_template: str | None = None
+    yml_template: str | None = None
 
 
 class MartArtifacts(BaseModel):

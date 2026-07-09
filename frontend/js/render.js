@@ -237,3 +237,57 @@ export function renderEnumModal(column) {
   dialog.showModal();
 }
 
+/**
+ * Renders the textual listing of related tables.
+ * @param {object} contract - The SAPTableMetadata contract.
+ * @param {(tableName: string) => void} onNavigateToTable - Called when a table link is clicked.
+ */
+export function renderRelations(contract, onNavigateToTable) {
+  const textTableVal = document.getElementById("text-table-info");
+  const checkTablesList = document.getElementById("check-tables-list");
+
+  // Render Associated Text Table
+  if (contract.associated_text_table) {
+    textTableVal.innerHTML = `<button class="ref-table-tag" data-check-table="${escapeHtml(
+      contract.associated_text_table
+    )}" title="Ver a tabela ${escapeHtml(contract.associated_text_table)}">🔗 ${escapeHtml(
+      contract.associated_text_table
+    )}</button> (tabela de textos que contém as descrições traduzidas dos códigos)`;
+  } else {
+    textTableVal.innerHTML = `<span class="relation-value-none">Nenhuma tabela de textos associada encontrada</span>`;
+  }
+
+  // Render Check Tables (Parent Tables)
+  if (contract.parent_tables && contract.parent_tables.length > 0) {
+    checkTablesList.innerHTML = contract.parent_tables
+      .map((parent) => {
+        const fkPairs = parent.foreign_key_fields
+          .map((fk) => `${fk.child_field} ➔ ${fk.parent_field}`)
+          .join(", ");
+        const importanceClass = `legend-dot--${parent.importance.toLowerCase()}`;
+        return `
+          <div class="check-table-item" style="margin-bottom: 0.45rem;">
+            <button class="ref-table-tag" data-check-table="${escapeHtml(
+              parent.parent_table_name
+            )}">🔗 ${escapeHtml(parent.parent_table_name)}</button>
+            <span class="check-table-info" style="font-size: 0.78rem; color: var(--text-secondary);">
+              (${parent.relationship_type} · <span class="legend-dot ${importanceClass}"></span> ${parent.importance})
+              <span class="check-table-keys" style="color: var(--text-muted);">[${fkPairs}]</span>
+            </span>
+          </div>`;
+      })
+      .join("");
+  } else {
+    checkTablesList.innerHTML = `<span class="relation-value-none">Nenhuma tabela de verificação encontrada</span>`;
+  }
+
+  // Wire navigation clicks
+  const allTags = [
+    ...textTableVal.querySelectorAll(".ref-table-tag"),
+    ...checkTablesList.querySelectorAll(".ref-table-tag")
+  ];
+  allTags.forEach((tag) => {
+    tag.addEventListener("click", () => onNavigateToTable(tag.dataset.checkTable));
+  });
+}
+
