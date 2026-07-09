@@ -111,9 +111,18 @@ def suggest_watermark(contract: TableContract) -> str | None:
     return None
 
 
-def _col_to_macro(column: Column, target_type: str) -> str:
-    """Returns the dbt macro expression for a column based on its target type."""
-    field = _quote_if_needed(column.column_name)
+def _col_to_macro(column: Column, target_type: str, alias: str | None = None) -> str:
+    """Returns the dbt macro expression for a column based on its target type.
+
+    Args:
+        column: The column to render.
+        target_type: Result of :func:`_map_column_type` for this column.
+        alias: Optional table alias to qualify the field with (``{alias}.
+            {field}``), used by :mod:`backend.mart_generator` when a column
+            comes from a JOINed table rather than the query's only source.
+    """
+    raw_field = _quote_if_needed(column.column_name)
+    field = f"{alias}.{raw_field}" if alias else raw_field
     if target_type == "DATE":
         return f"{{{{ to_date('{field}') }}}}"
     if target_type.startswith("DECIMAL"):

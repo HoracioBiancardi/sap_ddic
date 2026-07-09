@@ -55,3 +55,30 @@ export async function getDbtArtifacts(tableName, overrides = {}) {
   }
   return response.json();
 }
+
+/**
+ * Generates a fact/dimension dbt mart model from an arbitrary graph of
+ * table "boxes" and their join wiring — the visual builder's "Gerar" action.
+ * @param {object} payload - Shaped like the backend's MartGenerateRequest:
+ *   `{ tables: [{node_id, table_name}], root_node, joins: [{left_node,
+ *   right_node, fields: [{left_field, right_field}], left_filter?,
+ *   right_filter?, auto_detected}], mart_type?, source_name?, database?,
+ *   dbt_schema? }`.
+ * @returns {Promise<object>} The MartArtifacts payload (sql, yml,
+ *   documentation, mart_type, model_name, base_table, joined_tables,
+ *   warnings, source_name, database, dbt_schema).
+ */
+export async function generateMart(payload) {
+  const response = await fetch("/api/mart/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const detail = body.detail;
+    const message = Array.isArray(detail) ? detail.map((d) => d.msg).join("; ") : detail;
+    throw new Error(message || `Request failed (${response.status})`);
+  }
+  return response.json();
+}

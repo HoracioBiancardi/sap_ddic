@@ -25,11 +25,11 @@ import { generateInitialDbtArtifacts, initDbtGenerator, resetDbtGenerator } from
 import { initExportButtons } from "./exports.js";
 import { renderLineageGraph } from "./graph.js";
 import { initJsonToolbar, renderJson } from "./jsonViewer.js";
+import { initMartGenerator } from "./martGenerator.js";
 import { renderColumnsTable, renderEnumModal, renderSummary } from "./render.js";
 import { state } from "./state.js";
 import {
   clearSearchError,
-  enableTableViews,
   getActiveView,
   hideSearchLoading,
   hideTableFetchLoading,
@@ -153,7 +153,6 @@ async function selectTable(tableName) {
 
     hideTableFetchLoading();
     setTopbarTable(contract.table_name, contract.business_description);
-    enableTableViews();
 
     renderSummary(contract);
     renderColumnsTable(
@@ -195,13 +194,7 @@ document.addEventListener("click", (event) => {
 });
 
 navHomeItem.addEventListener("click", () => {
-  if (!state.currentTable) return;
-  state.currentTable = null;
-  state.contract = null;
-  lineageRendered = false;
-  dbtRendered = false;
   tableHistory = [];
-  resetDbtGenerator();
   searchInput.value = "";
   clearSearchError();
   renderSearchResults([]);
@@ -231,5 +224,6 @@ chkShowAllLineage.addEventListener("change", () => {
 initJsonToolbar(() => state.contract);
 initExportButtons(() => state.contract);
 initDbtGenerator(() => state.currentTable);
+initMartGenerator();
 
 searchInput.focus();

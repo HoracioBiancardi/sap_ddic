@@ -3,9 +3,11 @@
  * content area whose section ("view") is swapped by icon nav, not by
  * navigating through a sequence of full-page screens. This replaces the
  * previous landing -> summary -> details screen chain and the separate
- * in-page tab bar with one model: a view is either the "home" (search)
- * state, or one of the table-scoped views (resumo/dicionario/linhagem/json/
- * dbt), which stay disabled in the sidebar until a table is loaded.
+ * in-page tab bar with one model: every icon is always clickable, even
+ * before any table has ever been loaded — a table-scoped view just renders
+ * whatever it last had (its own empty state if nothing was ever loaded, or
+ * the last-loaded table's data otherwise), so switching views never throws
+ * away context.
  */
 
 const navItems = Array.from(document.querySelectorAll(".nav-item"));
@@ -47,13 +49,10 @@ function setActiveView(viewName) {
 
 /**
  * Switches the content area to the given view name (home/resumo/dicionario/
- * linhagem/json/dbt). No-op if the view is disabled (table-scoped view with
- * no table loaded yet).
+ * linhagem/json/dbt/mart).
  * @param {string} viewName
  */
 export function showView(viewName) {
-  const item = navItems.find((el) => el.dataset.view === viewName);
-  if (item && item.disabled) return;
   setActiveView(viewName);
 }
 
@@ -73,7 +72,6 @@ export function getActiveView() {
 export function initNav(onNavigate) {
   navItems.forEach((item) => {
     item.addEventListener("click", () => {
-      if (item.disabled) return;
       setActiveView(item.dataset.view);
       onNavigate?.(item.dataset.view);
     });
@@ -81,24 +79,14 @@ export function initNav(onNavigate) {
 }
 
 /**
- * Enables the table-scoped nav items (resumo/dicionario/linhagem/json/dbt)
- * once a table has been successfully loaded.
- */
-export function enableTableViews() {
-  navItems.forEach((item) => {
-    if (item.dataset.view !== "home") item.disabled = false;
-  });
-}
-
-/**
- * Disables the table-scoped nav items and returns to the home view; used
- * when starting a fresh search.
+ * Switches to the home view for a fresh search, clearing the drill-down
+ * "← Voltar" trail. Deliberately leaves the topbar's current-table
+ * breadcrumb and every other view's already-rendered data alone — going
+ * home to search something else doesn't throw away what you were just
+ * looking at, so the other icons keep showing your last table until (and
+ * unless) you actually load a new one.
  */
 export function resetToHome() {
-  navItems.forEach((item) => {
-    if (item.dataset.view !== "home") item.disabled = true;
-  });
-  topbarTableInfo.classList.add("hidden");
   setBackAvailable(false);
   setActiveView("home");
 }
