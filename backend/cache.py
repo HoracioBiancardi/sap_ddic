@@ -41,9 +41,15 @@ class MetadataCache:
                 DDIC object-name regex before reaching this method.
 
         Returns:
-            The path ``{cache_dir}/{table_name}.json``.
+            The path ``{cache_dir}/{table_name}.json``. A namespaced SAP
+            object name (e.g. ``/BIC/AZCUSTOMER``) has its ``/`` replaced
+            with ``_`` first: a leading ``/`` would otherwise make
+            ``Path.__truediv__`` discard ``cache_dir`` entirely and treat
+            the rest as an absolute path, and a mid-string ``/`` would
+            silently nest the file in a subdirectory that was never created.
         """
-        return self.cache_dir / f"{table_name}.json"
+        safe_name = table_name.replace("/", "_")
+        return self.cache_dir / f"{safe_name}.json"
 
     def read(self, table_name: str) -> dict[str, Any] | None:
         """Reads a cache entry from disk, if present and well-formed.

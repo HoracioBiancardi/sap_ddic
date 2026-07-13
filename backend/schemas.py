@@ -140,6 +140,12 @@ class DbtGenerateRequest(BaseModel):
     """Request body for POST /api/table/{table_name}/dbt.
 
     Allows overriding staging generation properties and custom templates.
+
+    Attributes:
+        plain_sql: If True, skip the dbt scaffolding entirely (no
+            ``config()`` block, no Jinja ``source()`` macro, no pipeline
+            audit columns) and return a plain ``SELECT ... FROM
+            {schema}.{table}`` a user can paste straight into a SQL client.
     """
 
     load_type: str | None = None
@@ -150,6 +156,7 @@ class DbtGenerateRequest(BaseModel):
     use_macros: bool = True
     sql_template: str | None = None
     yml_template: str | None = None
+    plain_sql: bool = False
 
 
 class DbtArtifacts(BaseModel):

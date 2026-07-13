@@ -35,9 +35,10 @@ export async function getTable(tableName) {
 /**
  * Generates the dbt staging SQL model and sources YAML for a table.
  * @param {string} tableName - Technical table name.
- * @param {{loadType?: string, watermarkColumn?: string, schema?: string}} [overrides] -
+ * @param {{loadType?: string, watermarkColumn?: string, schema?: string, plainSql?: boolean}} [overrides] -
  *   Optional overrides for the auto-suggested load type, watermark column
- *   (informational only) and sources.yml schema.
+ *   (informational only), sources.yml schema, and whether to skip the dbt
+ *   scaffolding entirely for a plain ad-hoc SQL query.
  * @returns {Promise<object>} The DbtArtifacts payload (sql, yml, load_type,
  *   watermark_column, warnings, source_name, database, dbt_schema).
  */
@@ -50,7 +51,8 @@ export async function getDbtArtifacts(tableName, overrides = {}) {
     source_name: overrides.sourceName || null,
     use_macros: overrides.useMacros !== undefined ? overrides.useMacros : true,
     sql_template: overrides.sqlTemplate || null,
-    yml_template: overrides.ymlTemplate || null
+    yml_template: overrides.ymlTemplate || null,
+    plain_sql: overrides.plainSql || false
   };
 
   const response = await fetch(`/api/table/${encodeURIComponent(tableName)}/dbt`, {

@@ -85,12 +85,20 @@ def search(
     return service.search_tables(q)
 
 
-@app.get("/api/table/{table_name}", response_model=TableContract)
+@app.get("/api/table/{table_name:path}", response_model=TableContract)
 def get_table(
     table_name: str = Depends(InputValidator.validate_table_name),
     service: MetadataService = Depends(_get_service),
 ) -> dict:
     """Returns the full metadata contract for a single SAP table.
+
+    ``table_name`` uses the ``:path`` converter (not the default
+    single-segment matcher) because a namespaced SAP object name (e.g.
+    ``/BIC/AZCUSTOMER``) contains its own ``/`` characters. The browser
+    sends those percent-encoded (``%2F``), but ASGI servers decode the
+    request path before Starlette's router ever sees it, so a
+    single-segment route 404s before this handler — or even
+    :func:`InputValidator.validate_table_name` — ever runs.
 
     Args:
         table_name: Validated, normalized technical table name.
@@ -102,7 +110,7 @@ def get_table(
     return service.get_table_contract(table_name)
 
 
-@app.post("/api/table/{table_name}/dbt", response_model=DbtArtifacts)
+@app.post("/api/table/{table_name:path}/dbt", response_model=DbtArtifacts)
 def get_table_dbt_artifacts(
     request: DbtGenerateRequest,
     table_name: str = Depends(InputValidator.validate_table_name),
@@ -133,6 +141,7 @@ def get_table_dbt_artifacts(
         use_macros=request.use_macros,
         sql_template=request.sql_template,
         yml_template=request.yml_template,
+        plain_sql=request.plain_sql,
     )
 
 

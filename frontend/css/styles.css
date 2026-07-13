@@ -74,6 +74,24 @@
   --glow-text: 0 0 4px rgba(240, 240, 240, 0.4);
 }
 
+/* Theme Corporate (Neutral dark slate, no CRT glow — for presentations) */
+.theme-corporate {
+  --bg: #14161b;
+  --bg-solid: #14161b;
+  --surface-1: #1a1d24;
+  --surface-2: #22262f;
+  --surface-3: #2b3038;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa1ae;
+  --text-muted: #6b7280;
+  --accent: #5b8def;
+  --accent-dim: rgba(91, 141, 239, 0.14);
+  --glow-color: transparent;
+  --glow-text: none;
+}
+
 :root {
   /* Constant variables */
   --font-mono: "Share Tech Mono", ui-monospace, "SFMono-Regular", monospace;
@@ -183,6 +201,17 @@ body.flicker-enabled {
   0% { opacity: 0.992; }
   50% { opacity: 1; }
   100% { opacity: 0.992; }
+}
+
+/* The corporate theme is meant for professional presentation, so the CRT
+   scanline overlay and flicker animation stay off regardless of the
+   Ajustes checkboxes — those effects are inherently retro. */
+.theme-corporate.crt-enabled::after {
+  display: none;
+}
+
+.theme-corporate.flicker-enabled {
+  animation: none;
 }
 
 /* ============================================================
@@ -968,6 +997,23 @@ body.flicker-enabled {
   font-size: 0.74rem;
 }
 
+/* vis-network injects its own <style> tag with a hardcoded light "sticky
+   note" tooltip (cream background, black text) at graph-render time, after
+   this stylesheet — !important is required to win the cascade, since a
+   later same-specificity rule would otherwise override a plain one. */
+.vis-tooltip {
+  background-color: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.78rem !important;
+  padding: 0.5rem 0.7rem !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8) !important;
+  white-space: pre-line !important;
+  max-width: 320px !important;
+}
+
 .data-source-note {
   margin-top: 1rem;
   padding: 0.5rem 0.8rem;
@@ -1073,6 +1119,10 @@ body.flicker-enabled {
   .dbt-output {
     grid-template-columns: 1fr;
   }
+}
+
+.dbt-output--sql-only {
+  grid-template-columns: 1fr;
 }
 
 .dbt-artifact {

@@ -241,6 +241,10 @@
               <span>Schema (sources.yml e SQL)</span>
               <input type="text" id="dbt-schema" placeholder="dataspherev2" autocomplete="off" />
             </label>
+            <label class="config-checkbox-label">
+              <input type="checkbox" id="dbt-plain-sql" />
+              <span>Gerar apenas SQL (sem dbt)</span>
+            </label>
             <button id="btn-generate-dbt" class="primary-button" type="button">Gerar dbt</button>
           </div>
 
@@ -252,7 +256,7 @@
           </div>
 
           <div id="dbt-output" class="dbt-output hidden">
-            <div class="dbt-artifact">
+            <div id="dbt-yml-artifact" class="dbt-artifact">
               <div class="json-toolbar">
                 <span class="dbt-artifact-title">sources.yml</span>
                 <button id="btn-copy-yml" class="toolbar-button">Copiar</button>
@@ -262,7 +266,7 @@
             </div>
             <div class="dbt-artifact">
               <div class="json-toolbar">
-                <span class="dbt-artifact-title">stg_&lt;tabela&gt;.sql</span>
+                <span id="dbt-sql-artifact-title" class="dbt-artifact-title">stg_&lt;tabela&gt;.sql</span>
                 <button id="btn-copy-sql" class="toolbar-button">Copiar</button>
                 <button id="btn-download-sql" class="toolbar-button">Baixar .sql</button>
               </div>
@@ -380,6 +384,7 @@
                     <option value="amber">Âmbar Radiação (Fallout NV)</option>
                     <option value="blue">Azul HUD (Fallout 4)</option>
                     <option value="white">Branco Monocromático (Vintage Terminal)</option>
+                    <option value="corporate">Corporativo (Dark Neutro, sem efeitos CRT)</option>
                   </select>
                 </label>
                 <label class="config-checkbox-label">

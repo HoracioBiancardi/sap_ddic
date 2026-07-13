@@ -351,6 +351,35 @@ def _build_yml(contract: TableContract, load_type: str, source_name: str, databa
     return "\n".join(out) + "\n"
 
 
+def _build_plain_select(contract: TableContract, schema: str) -> str:
+    """Builds a plain ad-hoc ``SELECT`` for a table, with no dbt scaffolding.
+
+    Skips the ``config()`` block, the Jinja ``source()`` macro, the
+    FULL/INCREMENTAL logic and the pipeline's own hash_pk/dt_ingestao/source
+    audit columns entirely — just the table's real columns against a literal
+    ``schema.table`` reference (e.g. ``FROM dataspherev2.mara``), ready to
+    paste into any SQL client.
+
+    Args:
+        contract: The table's full metadata contract.
+        schema: Schema the table is queried from.
+
+    Returns:
+        A ``SELECT ... FROM {schema}.{table}`` statement. A namespaced SAP
+        object name (e.g. ``/FHG/C027``) is double-quoted and kept in its
+        original case instead of lowercased — unquoted, ``/`` isn't a legal
+        identifier character at all, and quoted HANA identifiers are
+        case-sensitive, so the quoted name must match the real object name
+        exactly (matches :meth:`DDICRepository._qualified`'s own quoting for
+        the same reason).
+    """
+    quoted_table = _quote_if_needed(contract.table_name)
+    table_ref = quoted_table if quoted_table.startswith('"') else quoted_table.lower()
+    col_lines = [f"    {_quote_if_needed(column.column_name)}" for column in contract.columns]
+    columns_str = ",\n".join(col_lines)
+    return f"SELECT\n{columns_str}\nFROM {schema}.{table_ref}\n"
+
+
 def generate_dbt_artifacts(
     contract: TableContract,
     *,
@@ -362,6 +391,7 @@ def generate_dbt_artifacts(
     use_macros: bool = True,
     sql_template: str | None = None,
     yml_template: str | None = None,
+    plain_sql: bool = False,
 ) -> DbtArtifacts:
     """Builds the dbt staging SQL model and sources YAML for a single table.
 
@@ -376,11 +406,26 @@ def generate_dbt_artifacts(
         use_macros: Whether to use dbt macros or standard ANSI SQL casts.
         sql_template: Optional custom staging SQL template.
         yml_template: Optional custom staging YML template.
+        plain_sql: If True, ignore every dbt-shaped option above and return
+            a plain ``SELECT ... FROM {schema}.{table}`` instead (see
+            :func:`_build_plain_select`), with an empty ``yml``.
 
     Returns:
         The generated SQL/YML plus the resolved load type, watermark and any
         warnings.
     """
+    if plain_sql:
+        return DbtArtifacts(
+            sql=_build_plain_select(contract, schema),
+            yml="",
+            load_type="FULL",
+            watermark_column=None,
+            warnings=[],
+            source_name=source_name,
+            database=database,
+            dbt_schema=schema,
+        )
+
     resolved_load_type = (load_type or suggest_load_type(contract)).upper()
     if resolved_load_type not in ("FULL", "INCREMENTAL"):
         raise ValueError(f"load_type inválido: {resolved_load_type!r} (use FULL ou INCREMENTAL)")

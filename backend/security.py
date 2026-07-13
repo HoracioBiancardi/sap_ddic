@@ -15,7 +15,7 @@ from fastapi import HTTPException, Path, Query
 
 from backend.schemas import MartTableNode
 
-_TABLE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_/]{0,29}$")
+_TABLE_NAME_RE = re.compile(r"^/?[A-Z][A-Z0-9_/]{0,29}$")
 _SEARCH_TERM_RE = re.compile(r"^[A-Z0-9_ /]{1,30}$")
 
 # A mart canvas with more tables than this is almost certainly a mistake (or

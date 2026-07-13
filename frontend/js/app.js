@@ -8,7 +8,7 @@ import { generateInitialDbtArtifacts, initDbtGenerator, resetDbtGenerator } from
 import { initExportButtons } from "./exports.js";
 import { renderLineageGraph } from "./graph.js";
 import { initJsonToolbar, renderJson } from "./jsonViewer.js";
-import { initMartGenerator } from "./martGenerator.js";
+import { initMartGenerator, refreshCanvasTheme } from "./martGenerator.js";
 import { renderColumnsTable, renderEnumModal, renderSummary, renderRelations } from "./render.js";
 import { state } from "./state.js";
 import {
@@ -190,6 +190,14 @@ function applyUiSettings() {
   document.body.className = `theme-${theme}`;
   document.body.classList.toggle("crt-enabled", scanlines);
   document.body.classList.toggle("flicker-enabled", flicker);
+
+  // Node/edge colors are read from CSS variables once, at draw time, and
+  // baked into the vis.DataSet — switching theme afterward otherwise leaves
+  // an already-rendered graph/canvas showing the previous theme's colors.
+  if (state.contract && lineageRendered) {
+    renderLineageGraph(state.contract, { showAll: chkShowAllLineage.checked, onNodeClick: goToTable });
+  }
+  refreshCanvasTheme();
 }
 
 function renderSearchResults(results) {

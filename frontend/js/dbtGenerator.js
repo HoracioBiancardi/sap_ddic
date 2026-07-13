@@ -16,11 +16,14 @@ import { getDbtArtifacts } from "./api.js";
 const loadTypeSelect = document.getElementById("dbt-load-type");
 const watermarkInput = document.getElementById("dbt-watermark");
 const schemaInput = document.getElementById("dbt-schema");
+const plainSqlCheckbox = document.getElementById("dbt-plain-sql");
 const warningsBox = document.getElementById("dbt-warnings");
 const loadingCard = document.getElementById("dbt-loading");
 const outputBox = document.getElementById("dbt-output");
+const ymlArtifact = document.getElementById("dbt-yml-artifact");
 const ymlCode = document.getElementById("dbt-yml-code");
 const sqlCode = document.getElementById("dbt-sql-code");
+const sqlArtifactTitle = document.getElementById("dbt-sql-artifact-title");
 
 let lastArtifacts = null;
 
@@ -35,7 +38,7 @@ function clearMessage() {
   warningsBox.classList.remove("dbt-warnings--error");
 }
 
-function renderArtifacts(artifacts) {
+function renderArtifacts(artifacts, isPlainSql) {
   lastArtifacts = artifacts;
   loadTypeSelect.value = artifacts.load_type;
   watermarkInput.value = artifacts.watermark_column || "";
@@ -46,6 +49,10 @@ function renderArtifacts(artifacts) {
   } else {
     clearMessage();
   }
+
+  ymlArtifact.classList.toggle("hidden", isPlainSql);
+  outputBox.classList.toggle("dbt-output--sql-only", isPlainSql);
+  sqlArtifactTitle.textContent = isPlainSql ? "consulta.sql" : "stg_<tabela>.sql";
 
   ymlCode.textContent = artifacts.yml;
   Prism.highlightElement(ymlCode);
@@ -60,6 +67,8 @@ async function generate(tableName, { useCurrentInputs } = {}) {
   outputBox.classList.add("hidden");
   clearMessage();
 
+  const plainSql = plainSqlCheckbox.checked;
+
   try {
     const defaultSchema = localStorage.getItem("dbt_schema") || "dataspherev2";
     const defaultDatabase = localStorage.getItem("dbt_database") || "BRONZE";
@@ -73,9 +82,10 @@ async function generate(tableName, { useCurrentInputs } = {}) {
       useMacros: useMacros,
       sqlTemplate: localStorage.getItem("temp_staging_sql") || null,
       ymlTemplate: localStorage.getItem("temp_staging_yml") || null,
+      plainSql: plainSql,
     };
     const artifacts = await getDbtArtifacts(tableName, overrides);
-    renderArtifacts(artifacts);
+    renderArtifacts(artifacts, plainSql);
   } catch (error) {
     showMessage(error.message || "Erro ao gerar os artefatos dbt.", true);
   } finally {

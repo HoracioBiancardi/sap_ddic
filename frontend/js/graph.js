@@ -47,7 +47,12 @@ function importanceStyle(importance, { highAccent, mediumAccent, neutral, textPr
   return {
     border: neutral,
     background: withAlpha(neutral, "14"),
-    fontColor: neutral,
+    // Label text stays at full text-primary contrast even for de-emphasized
+    // nodes — --text-muted is deliberately low-contrast against the dark
+    // background (by design, for borders/fills), which made table names
+    // unreadable here. De-emphasis is carried by the dashed border/thin
+    // width/smaller font instead.
+    fontColor: textPrimary,
     fontSize: 12,
     borderWidth: 1,
     dashes: [3, 3],
@@ -55,7 +60,12 @@ function importanceStyle(importance, { highAccent, mediumAccent, neutral, textPr
 }
 
 function cssVar(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  // The active theme class (theme-green, theme-corporate, ...) is applied to
+  // <body>, not <html> — reading getComputedStyle off documentElement (<html>)
+  // never sees those variables (custom properties don't inherit upward), so
+  // every color below silently resolved to "", and vis-network fell back to
+  // its own library defaults (generic blue border, no fill, invisible text).
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
 }
 
 /**
@@ -72,11 +82,20 @@ export function renderLineageGraph(contract, options = {}) {
   const onNodeClick = options.onNodeClick;
   const container = document.getElementById("canvas-linhagem");
 
+  // NOTE: read the real theme variables directly (--text-secondary,
+  // --accent), not the --cat-* aliases (e.g. --cat-violet: var(--text-secondary)).
+  // A custom property's *computed value* keeps var() references unresolved —
+  // substitution only happens when a var() is consumed by a normal CSS
+  // property, never when JS reads the custom property itself via
+  // getPropertyValue. Reading --cat-violet here returns the literal string
+  // "var(--text-secondary)", which is not a usable color and makes the
+  // canvas silently drop the fill/stroke.
   const accent = cssVar("--accent");
-  const highAccent = cssVar("--cat-violet");
-  const mediumAccent = cssVar("--cat-aqua");
+  const highAccent = cssVar("--text-secondary"); // same source as --cat-violet
+  const mediumAccent = cssVar("--accent"); // same source as --cat-aqua
   const neutral = cssVar("--text-muted");
   const textPrimary = cssVar("--text-primary");
+  const textAccent = cssVar("--text-secondary"); // same source as --cat-blue
   const surface = cssVar("--surface-2");
   const bgSolid = cssVar("--bg-solid") || "#040f06";
 
@@ -85,7 +104,16 @@ export function renderLineageGraph(contract, options = {}) {
       id: contract.table_name,
       label: contract.table_name,
       title: `${contract.table_name} — tabela atual`,
-      color: { background: accent, border: accent, highlight: { background: accent, border: textPrimary } },
+      // vis-network's "hover" state (mouse-over, no click) defaults to its
+      // own library color when unset, independent of "highlight" (selection)
+      // — a pale near-white blue, which is what looked like the box "turning
+      // white" on mouse-over. Setting it explicitly avoids that fallback.
+      color: {
+        background: accent,
+        border: accent,
+        highlight: { background: accent, border: textPrimary },
+        hover: { background: accent, border: textPrimary },
+      },
       font: { color: bgSolid, size: 16, bold: { color: bgSolid } },
       shape: "box",
       borderWidth: 2,
@@ -104,6 +132,7 @@ export function renderLineageGraph(contract, options = {}) {
         background: withAlpha(textAccent, "1f"),
         border: textAccent,
         highlight: { background: withAlpha(textAccent, "33"), border: textAccent },
+        hover: { background: withAlpha(textAccent, "33"), border: textAccent },
       },
       font: { color: textPrimary, size: 13 },
       shape: "box",
@@ -139,6 +168,7 @@ export function renderLineageGraph(contract, options = {}) {
           background: style.background,
           border: style.border,
           highlight: { background: withAlpha(style.border, "40"), border: style.border },
+          hover: { background: withAlpha(style.border, "40"), border: style.border },
         },
         font: { color: style.fontColor, size: style.fontSize },
         shape: "box",
@@ -176,6 +206,14 @@ export function renderLineageGraph(contract, options = {}) {
       interaction: { hover: true },
     }
   );
+
+  // The barnesHut physics layout can settle with a node (and its edge)
+  // outside the visible canvas — no auto-zoom happens by default once
+  // physics is running, so that edge looks like it "goes nowhere". Fit the
+  // view to every node once the layout has settled.
+  network.once("stabilizationIterationsDone", () => {
+    network.fit({ animation: false });
+  });
 
   network.on("click", (params) => {
     if (params.nodes.length === 0) return;

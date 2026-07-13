@@ -67,7 +67,9 @@ let mermaidRenderSeq = 0;
 let mermaidReady = false;
 
 function cssVar(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  // The active theme class lives on <body>, not <html> — reading off
+  // documentElement never sees it (see the identical fix in graph.js).
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
 }
 
 function escapeHtml(value) {
@@ -149,6 +151,11 @@ function uniqueNodeId(tableName) {
 function nodeToVisNode(info) {
   const isRoot = info.nodeId === rootNodeId;
   const isPending = info.nodeId === pendingSourceNodeId;
+  const background = isRoot ? cssVar("--accent") : cssVar("--surface-2");
+  // --cat-blue is an alias (var(--text-secondary)) — reading it directly
+  // via JS returns that unresolved "var(...)" string, not a color (see
+  // the identical fix/comment in graph.js), so read --text-secondary itself.
+  const border = isPending ? cssVar("--accent") : isRoot ? cssVar("--accent") : cssVar("--text-secondary");
   return {
     id: info.nodeId,
     label: info.nodeId === info.tableName ? info.nodeId : `${info.nodeId}\n(${info.tableName})`,
@@ -157,9 +164,13 @@ function nodeToVisNode(info) {
     shapeProperties: { borderRadius: 2 },
     margin: 12,
     borderWidth: isRoot ? 3 : isPending ? 3 : 1,
+    // Explicit highlight/hover keep vis-network from falling back to its own
+    // library default (a pale near-white blue) on mouse-over/selection.
     color: {
-      background: isRoot ? cssVar("--accent") : cssVar("--surface-2"),
-      border: isPending ? cssVar("--accent") : isRoot ? cssVar("--accent") : cssVar("--cat-blue"),
+      background,
+      border,
+      highlight: { background, border },
+      hover: { background, border },
     },
     font: { color: isRoot ? (cssVar("--bg-solid") || "#040f06") : cssVar("--text-primary"), size: 14, face: "ui-monospace, monospace" },
   };
@@ -672,6 +683,18 @@ function clearCanvas() {
  * copy/download buttons for the yml, SQL and documentation artifacts. Call
  * once at startup.
  */
+/**
+ * Re-reads the current theme's CSS variables and re-applies them to every
+ * node/edge already on the canvas. Colors are computed once (via cssVar)
+ * when a node/edge is built, so switching the theme in Ajustes otherwise
+ * leaves an already-built canvas showing the old theme's colors.
+ */
+export function refreshCanvasTheme() {
+  if (network) {
+    syncCanvas();
+  }
+}
+
 export function initMartGenerator() {
   const defaultSchema = localStorage.getItem("dbt_schema") || "dataspherev2";
   schemaInput.value = defaultSchema;
