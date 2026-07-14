@@ -35,10 +35,12 @@ export async function getTable(tableName) {
 /**
  * Generates the dbt staging SQL model and sources YAML for a table.
  * @param {string} tableName - Technical table name.
- * @param {{loadType?: string, watermarkColumn?: string, schema?: string, plainSql?: boolean}} [overrides] -
+ * @param {{loadType?: string, watermarkColumn?: string, schema?: string, plainSql?: boolean, useBusinessAlias?: boolean}} [overrides] -
  *   Optional overrides for the auto-suggested load type, watermark column
- *   (informational only), sources.yml schema, and whether to skip the dbt
- *   scaffolding entirely for a plain ad-hoc SQL query.
+ *   (informational only), sources.yml schema, whether to skip the dbt
+ *   scaffolding entirely for a plain ad-hoc SQL query, and whether to alias
+ *   every column with a short slug of its business description instead of
+ *   the raw SAP field name.
  * @returns {Promise<object>} The DbtArtifacts payload (sql, yml, load_type,
  *   watermark_column, warnings, source_name, database, dbt_schema).
  */
@@ -52,7 +54,8 @@ export async function getDbtArtifacts(tableName, overrides = {}) {
     use_macros: overrides.useMacros !== undefined ? overrides.useMacros : true,
     sql_template: overrides.sqlTemplate || null,
     yml_template: overrides.ymlTemplate || null,
-    plain_sql: overrides.plainSql || false
+    plain_sql: overrides.plainSql || false,
+    use_business_alias: overrides.useBusinessAlias || false
   };
 
   const response = await fetch(`/api/table/${encodeURIComponent(tableName)}/dbt`, {

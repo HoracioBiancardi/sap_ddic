@@ -88,6 +88,7 @@ async function generate(tableName, { useCurrentInputs } = {}) {
       sqlTemplate: localStorage.getItem("temp_staging_sql") || null,
       ymlTemplate: localStorage.getItem("temp_staging_yml") || null,
       plainSql: plainSql,
+      useBusinessAlias: localStorage.getItem("use_business_alias") === "true",
     };
     const artifacts = await getDbtArtifacts(tableName, overrides);
     renderArtifacts(artifacts, plainSql);

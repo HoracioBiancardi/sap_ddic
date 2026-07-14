@@ -146,6 +146,9 @@ class DbtGenerateRequest(BaseModel):
             ``config()`` block, no Jinja ``source()`` macro, no pipeline
             audit columns) and return a plain ``SELECT ... FROM
             {schema}.{table}`` a user can paste straight into a SQL client.
+        use_business_alias: If True, every column's ``AS`` alias is a short
+            slug of its business description (e.g. ``numero_material``)
+            instead of the raw SAP field name lowercased.
     """
 
     load_type: str | None = None
@@ -157,6 +160,7 @@ class DbtGenerateRequest(BaseModel):
     sql_template: str | None = None
     yml_template: str | None = None
     plain_sql: bool = False
+    use_business_alias: bool = False
 
 
 class DbtArtifacts(BaseModel):
@@ -284,6 +288,9 @@ class MartGenerateRequest(BaseModel):
             to the resolved schema rather than a fixed name).
         database: Optional override for the documentation's database.
         dbt_schema: Optional override for the yml/SQL schema.
+        use_business_alias: If True, every column's output alias is a short
+            slug of its business description instead of the raw SAP field
+            name (see :class:`DbtGenerateRequest.use_business_alias`).
     """
 
     tables: list[MartTableNode]
@@ -296,6 +303,7 @@ class MartGenerateRequest(BaseModel):
     use_macros: bool = True
     sql_template: str | None = None
     yml_template: str | None = None
+    use_business_alias: bool = False
 
 
 class MartArtifacts(BaseModel):

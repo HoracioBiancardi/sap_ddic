@@ -117,6 +117,7 @@ function initConfigPage() {
   const schemaInput = document.getElementById("config-dbt-schema");
   const useMacrosCheck = document.getElementById("config-dbt-use-macros");
   const useDbtCheck = document.getElementById("config-generate-with-dbt");
+  const useBusinessAliasCheck = document.getElementById("config-use-business-alias");
 
   const themeSelect = document.getElementById("config-ui-theme");
   const scanlinesCheck = document.getElementById("config-ui-scanlines");
@@ -138,6 +139,7 @@ function initConfigPage() {
   schemaInput.value = localStorage.getItem("dbt_schema") || "dataspherev2";
   useMacrosCheck.checked = localStorage.getItem("dbt_use_macros") !== "false";
   useDbtCheck.checked = localStorage.getItem("dbt_enabled") !== "false";
+  useBusinessAliasCheck.checked = localStorage.getItem("use_business_alias") === "true";
 
   themeSelect.value = localStorage.getItem("ui_theme") || "green";
   scanlinesCheck.checked = localStorage.getItem("ui_scanlines") !== "false";
@@ -158,6 +160,7 @@ function initConfigPage() {
     localStorage.setItem("dbt_schema", schemaInput.value.trim());
     localStorage.setItem("dbt_use_macros", useMacrosCheck.checked);
     localStorage.setItem("dbt_enabled", useDbtCheck.checked);
+    localStorage.setItem("use_business_alias", useBusinessAliasCheck.checked);
     localStorage.setItem("ui_theme", themeSelect.value);
     localStorage.setItem("ui_scanlines", scanlinesCheck.checked);
     localStorage.setItem("ui_flicker", flickerCheck.checked);

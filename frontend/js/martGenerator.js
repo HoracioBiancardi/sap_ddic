@@ -639,6 +639,7 @@ async function generate() {
     use_macros: useMacros,
     sql_template: localStorage.getItem("temp_mart_sql") || null,
     yml_template: localStorage.getItem("temp_mart_yml") || null,
+    use_business_alias: localStorage.getItem("use_business_alias") === "true",
   };
 
   try {

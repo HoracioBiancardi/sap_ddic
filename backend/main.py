@@ -142,6 +142,7 @@ def get_table_dbt_artifacts(
         sql_template=request.sql_template,
         yml_template=request.yml_template,
         plain_sql=request.plain_sql,
+        use_business_alias=request.use_business_alias,
     )
 
 
@@ -203,6 +204,7 @@ def generate_mart(
             use_macros=request.use_macros,
             sql_template=request.sql_template,
             yml_template=request.yml_template,
+            use_business_alias=request.use_business_alias,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

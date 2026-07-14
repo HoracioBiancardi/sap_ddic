@@ -14,6 +14,7 @@ sibling ``config.py`` pattern) — it does not change the SQL/YML content.
 """
 
 import re
+import unicodedata
 
 from backend.schemas import Column, DbtArtifacts, TableContract
 
@@ -27,6 +28,20 @@ _DATE_KEYWORDS = {"DATA", "DT", "DATUM", "TIMESTAMP", "CRIADO", "MODIFICADO", "D
 
 # Priority-ordered list of standard SAP modification/creation date fields.
 _SAP_WATERMARK_CANDIDATES = ["AEDAT", "ERDAT", "CPUDT", "UDATE", "BUDAT", "UPDDT"]
+
+# Portuguese stopwords dropped when slugging a business description into an
+# alias (see `_business_alias`) — plain-ASCII since the description is
+# accent-stripped first.
+_ALIAS_STOPWORDS_PT = {
+    "DE", "DA", "DO", "DAS", "DOS", "E", "A", "O", "AS", "OS",
+    "EM", "PARA", "COM", "NO", "NA", "NOS", "NAS", "UM", "UMA",
+}
+_ALIAS_MAX_WORDS = 3
+
+# Pipeline audit columns appended to every generated staging model — reserved
+# so a business-description alias can never collide with one of them (see
+# `_build_alias_map`).
+_AUDIT_COLUMN_NAMES = {"hash_pk", "dt_ingestao", "source"}
 
 
 def _is_hidden_date(column: Column) -> bool:
@@ -45,6 +60,63 @@ def _sap_alias(field_name: str) -> str:
     Handles namespaced fields like ``/BEV1/LULDEGRP`` -> ``bev1_luldegrp``.
     """
     return field_name.lstrip("/").replace("/", "_").lower()
+
+
+def _business_alias(column: Column) -> str:
+    """Builds a short, human-readable SQL alias from a column's business
+    description (e.g. "Número do material" -> ``numero_material``), instead
+    of the cryptic raw SAP field name (e.g. ``MATNR``).
+
+    Portuguese stopwords ("de", "do", "da"...) are dropped and the result is
+    capped at ``_ALIAS_MAX_WORDS`` significant words, so a long, multi-clause
+    DDIC description doesn't turn into a full-sentence alias. Falls back to
+    :func:`_sap_alias` when the description is empty or every word in it is
+    a stopword/non-alphanumeric (nothing usable left to slug).
+    """
+    decomposed = unicodedata.normalize("NFKD", column.business_description)
+    ascii_text = "".join(c for c in decomposed if not unicodedata.combining(c))
+    words = [w for w in re.findall(r"[A-Za-z0-9]+", ascii_text) if w.upper() not in _ALIAS_STOPWORDS_PT]
+    if not words:
+        return _sap_alias(column.column_name)
+    alias = "_".join(w.lower() for w in words[:_ALIAS_MAX_WORDS])
+    return f"f_{alias}" if alias[0].isdigit() else alias
+
+
+def _build_alias_map(
+    columns: list[Column], use_business_alias: bool, reserved: set[str] | None = None
+) -> dict[str, str]:
+    """Resolves each column's output alias once, in stable column order, so
+    the same field gets the same alias everywhere it's referenced (the SQL
+    ``AS`` clause and the yml column documentation) — resolving
+    independently in two different iteration orders (the yml lists primary
+    keys first) could otherwise pick a different winner per column on a
+    collision and desync the two artifacts.
+
+    Two business-description aliases can legitimately collide (e.g. two
+    "chave do documento contábil" fields differing only past
+    ``_ALIAS_MAX_WORDS``) — a colliding column falls back to its technical
+    :func:`_sap_alias`, which is always unique within a table.
+
+    Args:
+        columns: The table's columns, in the order they'll be emitted.
+        use_business_alias: Whether to slug the business description at all;
+            when False, every column just gets its :func:`_sap_alias`
+            (identical to this module's pre-existing behavior).
+        reserved: Alias strings that are already taken (e.g. this model's own
+            pipeline audit column names) and must not be reused.
+
+    Returns:
+        A mapping of each column's technical name to its resolved alias.
+    """
+    seen = set(reserved or ())
+    alias_map: dict[str, str] = {}
+    for column in columns:
+        alias = _business_alias(column) if use_business_alias else _sap_alias(column.column_name)
+        if alias in seen:
+            alias = _sap_alias(column.column_name)
+        seen.add(alias)
+        alias_map[column.column_name] = alias
+    return alias_map
 
 
 def _quote_if_needed(field_name: str) -> str:
@@ -140,11 +212,19 @@ def _col_to_macro(column: Column, target_type: str, alias: str | None = None, us
         return f"NULLIF(TRIM({field}), '')"
 
 
-def _build_sql(contract: TableContract, load_type: str, source_name: str, use_macros: bool = True, sql_template: str | None = None) -> str:
+def _build_sql(
+    contract: TableContract,
+    load_type: str,
+    source_name: str,
+    use_macros: bool = True,
+    sql_template: str | None = None,
+    alias_map: dict[str, str] | None = None,
+) -> str:
     table_name = contract.table_name.lower()
-    
+
     col_lines = [
-        f"    {_col_to_macro(column, _map_column_type(column), use_macros=use_macros)} AS {_sap_alias(column.column_name)}"
+        f"    {_col_to_macro(column, _map_column_type(column), use_macros=use_macros)} AS "
+        f"{(alias_map or {}).get(column.column_name, _sap_alias(column.column_name))}"
         for column in contract.columns
     ]
     
@@ -282,10 +362,21 @@ def _esc(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _build_yml(contract: TableContract, load_type: str, source_name: str, database: str, schema: str, yml_template: str | None = None) -> str:
+def _build_yml(
+    contract: TableContract,
+    load_type: str,
+    source_name: str,
+    database: str,
+    schema: str,
+    yml_template: str | None = None,
+    alias_map: dict[str, str] | None = None,
+) -> str:
     table_name = contract.table_name.lower()
     description = _esc(contract.business_description)
     materialized = "incremental" if load_type == "INCREMENTAL" else "table"
+
+    def _alias(column: Column) -> str:
+        return (alias_map or {}).get(column.column_name, _sap_alias(column.column_name))
 
     pk_columns = [column for column in contract.columns if column.is_primary_key]
     non_pk_columns = [column for column in contract.columns if not column.is_primary_key]
@@ -294,12 +385,12 @@ def _build_yml(contract: TableContract, load_type: str, source_name: str, databa
     if pk_columns:
         out_cols.append("          # Chaves Primárias / Identificadores")
         for column in pk_columns:
-            out_cols.append(f"          - name: {_sap_alias(column.column_name)}")
+            out_cols.append(f"          - name: {_alias(column)}")
             if column.business_description:
                 out_cols.append(f'            description: "{_esc(column.business_description)}"')
 
     for column in non_pk_columns:
-        out_cols.append(f"          - name: {_sap_alias(column.column_name)}")
+        out_cols.append(f"          - name: {_alias(column)}")
         if column.business_description:
             out_cols.append(f'            description: "{_esc(column.business_description)}"')
 
@@ -351,7 +442,7 @@ def _build_yml(contract: TableContract, load_type: str, source_name: str, databa
     return "\n".join(out) + "\n"
 
 
-def _build_plain_select(contract: TableContract, schema: str) -> str:
+def _build_plain_select(contract: TableContract, schema: str, alias_map: dict[str, str] | None = None) -> str:
     """Builds a plain ad-hoc ``SELECT`` for a table, with no dbt scaffolding.
 
     Skips the ``config()`` block, the Jinja ``source()`` macro, the
@@ -363,6 +454,10 @@ def _build_plain_select(contract: TableContract, schema: str) -> str:
     Args:
         contract: The table's full metadata contract.
         schema: Schema the table is queried from.
+        alias_map: When given, each column gets an explicit ``AS <alias>``
+            (see :func:`_build_alias_map`); when ``None`` (the default), the
+            column list has no aliasing at all, preserving this function's
+            original behavior.
 
     Returns:
         A ``SELECT ... FROM {schema}.{table}`` statement. A namespaced SAP
@@ -375,7 +470,13 @@ def _build_plain_select(contract: TableContract, schema: str) -> str:
     """
     quoted_table = _quote_if_needed(contract.table_name)
     table_ref = quoted_table if quoted_table.startswith('"') else quoted_table.lower()
-    col_lines = [f"    {_quote_if_needed(column.column_name)}" for column in contract.columns]
+    if alias_map:
+        col_lines = [
+            f"    {_quote_if_needed(column.column_name)} AS {alias_map[column.column_name]}"
+            for column in contract.columns
+        ]
+    else:
+        col_lines = [f"    {_quote_if_needed(column.column_name)}" for column in contract.columns]
     columns_str = ",\n".join(col_lines)
     return f"SELECT\n{columns_str}\nFROM {schema}.{table_ref}\n"
 
@@ -392,6 +493,7 @@ def generate_dbt_artifacts(
     sql_template: str | None = None,
     yml_template: str | None = None,
     plain_sql: bool = False,
+    use_business_alias: bool = False,
 ) -> DbtArtifacts:
     """Builds the dbt staging SQL model and sources YAML for a single table.
 
@@ -409,14 +511,19 @@ def generate_dbt_artifacts(
         plain_sql: If True, ignore every dbt-shaped option above and return
             a plain ``SELECT ... FROM {schema}.{table}`` instead (see
             :func:`_build_plain_select`), with an empty ``yml``.
+        use_business_alias: If True, every column's ``AS`` alias (in the SQL
+            and, when not ``plain_sql``, the yml column list) is a short slug
+            of its business description (e.g. ``numero_material``) instead of
+            the raw SAP field name lowercased — see :func:`_business_alias`.
 
     Returns:
         The generated SQL/YML plus the resolved load type, watermark and any
         warnings.
     """
     if plain_sql:
+        alias_map = _build_alias_map(contract.columns, use_business_alias) if use_business_alias else None
         return DbtArtifacts(
-            sql=_build_plain_select(contract, schema),
+            sql=_build_plain_select(contract, schema, alias_map),
             yml="",
             load_type="FULL",
             watermark_column=None,
@@ -440,9 +547,11 @@ def generate_dbt_artifacts(
             "Nenhuma coluna de watermark foi encontrada automaticamente para esta carga incremental."
         )
 
+    alias_map = _build_alias_map(contract.columns, use_business_alias, _AUDIT_COLUMN_NAMES)
+
     return DbtArtifacts(
-        sql=_build_sql(contract, resolved_load_type, source_name, use_macros, sql_template),
-        yml=_build_yml(contract, resolved_load_type, source_name, database, schema, yml_template),
+        sql=_build_sql(contract, resolved_load_type, source_name, use_macros, sql_template, alias_map),
+        yml=_build_yml(contract, resolved_load_type, source_name, database, schema, yml_template, alias_map),
         load_type=resolved_load_type,
         watermark_column=resolved_watermark,
         warnings=warnings,

@@ -24,9 +24,9 @@ formal DD08L check-table relationships at all, so a caller needs to be able
 to hand-wire those edges explicitly, with an optional field/value filter
 (e.g. VBFA's ``VBTYP_N = 'J'``).
 
-Reuses the exact same per-column type-mapping/macro logic as
+Reuses the exact same per-column type-mapping/macro/alias logic as
 :mod:`backend.dbt_generator` (``_col_to_macro``, ``_map_column_type``,
-``_quote_if_needed``, ``_sap_alias``, ``_esc``) so a column renders
+``_quote_if_needed``, ``_build_alias_map``, ``_esc``) so a column renders
 identically whether it ends up in a single-table staging model or a
 multi-table mart.
 
@@ -43,7 +43,7 @@ it.
 from collections import deque
 from dataclasses import dataclass
 
-from backend.dbt_generator import _col_to_macro, _esc, _map_column_type, _quote_if_needed, _sap_alias
+from backend.dbt_generator import _build_alias_map, _col_to_macro, _esc, _map_column_type, _quote_if_needed
 from backend.schemas import JoinFilter, MartArtifacts, MartJoinSpec, TableContract
 
 # A joined box this wide probably shouldn't have every column brought across
@@ -158,19 +158,24 @@ def _build_sql(
     joins: list[_ResolvedJoin],
     model_name: str,
     source_name: str,
+    alias_maps: dict[str, dict[str, str]],
     use_macros: bool = True,
     sql_template: str | None = None,
 ) -> str:
     root_alias = root_node.lower()
 
+    root_alias_map = alias_maps[root_node]
     col_lines = [
-        f"    {_col_to_macro(column, _map_column_type(column), root_alias, use_macros=use_macros)} AS {_sap_alias(column.column_name)}"
+        f"    {_col_to_macro(column, _map_column_type(column), root_alias, use_macros=use_macros)} AS "
+        f"{root_alias_map[column.column_name]}"
         for column in root_contract.columns
     ]
     for join in joins:
         alias = join.node_id.lower()
+        join_alias_map = alias_maps[join.node_id]
         col_lines += [
-            f"    {_col_to_macro(column, _map_column_type(column), alias, use_macros=use_macros)} AS {alias}_{_sap_alias(column.column_name)}"
+            f"    {_col_to_macro(column, _map_column_type(column), alias, use_macros=use_macros)} AS "
+            f"{alias}_{join_alias_map[column.column_name]}"
             for column in join.contract.columns
         ]
 
@@ -234,18 +239,21 @@ def _build_yml(
     joins: list[_ResolvedJoin],
     mart_type: str,
     model_name: str,
+    alias_maps: dict[str, dict[str, str]],
     yml_template: str | None = None,
 ) -> str:
+    root_alias_map = alias_maps[root_node]
     out_cols = []
     for column in root_contract.columns:
-        out_cols.append(f"      - name: {_sap_alias(column.column_name)}")
+        out_cols.append(f"      - name: {root_alias_map[column.column_name]}")
         if column.business_description:
             out_cols.append(f'        description: "{_esc(column.business_description)}"')
 
     for join in joins:
         alias = join.node_id.lower()
+        join_alias_map = alias_maps[join.node_id]
         for column in join.contract.columns:
-            out_cols.append(f"      - name: {alias}_{_sap_alias(column.column_name)}")
+            out_cols.append(f"      - name: {alias}_{join_alias_map[column.column_name]}")
             desc = f"[{join.node_id}] {column.business_description}".strip()
             out_cols.append(f'        description: "{_esc(desc)}"')
 
@@ -380,6 +388,7 @@ def generate_mart_artifacts(
     use_macros: bool = True,
     sql_template: str | None = None,
     yml_template: str | None = None,
+    use_business_alias: bool = False,
 ) -> MartArtifacts:
     """Builds a fact/dimension dbt mart model from an arbitrary graph of
     table boxes and their join wiring.
@@ -398,6 +407,13 @@ def generate_mart_artifacts(
         use_macros: Whether to use dbt macros or standard ANSI SQL casts.
         sql_template: Optional custom mart SQL template.
         yml_template: Optional custom mart YML template.
+        use_business_alias: If True, every column's output alias (both in
+            the SQL and the yml column list) is a short slug of its business
+            description instead of the raw SAP field name — see
+            :func:`backend.dbt_generator._business_alias`. Each box (root or
+            joined) gets its own collision-safe alias resolution, since
+            joined-box columns are already disambiguated by their
+            ``{node_id}_`` prefix.
 
     Returns:
         The generated SQL/YML/documentation.
@@ -414,8 +430,12 @@ def generate_mart_artifacts(
 
     model_name = f"{resolved_mart_type.lower()}_{root_node.lower()}"
 
-    sql = _build_sql(root_node, root_contract, ordered_joins, model_name, source_name, use_macros, sql_template)
-    yml = _build_yml(root_node, root_contract, ordered_joins, resolved_mart_type, model_name, yml_template)
+    alias_maps = {root_node: _build_alias_map(root_contract.columns, use_business_alias, {"hash_pk", "dt_ingestao", "source"})}
+    for join in ordered_joins:
+        alias_maps[join.node_id] = _build_alias_map(join.contract.columns, use_business_alias)
+
+    sql = _build_sql(root_node, root_contract, ordered_joins, model_name, source_name, alias_maps, use_macros, sql_template)
+    yml = _build_yml(root_node, root_contract, ordered_joins, resolved_mart_type, model_name, alias_maps, yml_template)
     documentation = _build_documentation(root_node, root_contract, ordered_joins, resolved_mart_type, model_name, sql)
 
     warnings = [
