@@ -116,6 +116,7 @@ function initConfigPage() {
   const dbInput = document.getElementById("config-dbt-database");
   const schemaInput = document.getElementById("config-dbt-schema");
   const useMacrosCheck = document.getElementById("config-dbt-use-macros");
+  const useDbtCheck = document.getElementById("config-generate-with-dbt");
 
   const themeSelect = document.getElementById("config-ui-theme");
   const scanlinesCheck = document.getElementById("config-ui-scanlines");
@@ -136,6 +137,7 @@ function initConfigPage() {
   dbInput.value = localStorage.getItem("dbt_database") || "BRONZE";
   schemaInput.value = localStorage.getItem("dbt_schema") || "dataspherev2";
   useMacrosCheck.checked = localStorage.getItem("dbt_use_macros") !== "false";
+  useDbtCheck.checked = localStorage.getItem("dbt_enabled") !== "false";
 
   themeSelect.value = localStorage.getItem("ui_theme") || "green";
   scanlinesCheck.checked = localStorage.getItem("ui_scanlines") !== "false";
@@ -155,6 +157,7 @@ function initConfigPage() {
     localStorage.setItem("dbt_database", dbInput.value.trim());
     localStorage.setItem("dbt_schema", schemaInput.value.trim());
     localStorage.setItem("dbt_use_macros", useMacrosCheck.checked);
+    localStorage.setItem("dbt_enabled", useDbtCheck.checked);
     localStorage.setItem("ui_theme", themeSelect.value);
     localStorage.setItem("ui_scanlines", scanlinesCheck.checked);
     localStorage.setItem("ui_flicker", flickerCheck.checked);

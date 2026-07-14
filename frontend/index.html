@@ -44,12 +44,12 @@
           </svg>
           <span class="nav-label">[2] DICIONÁRIO</span>
         </button>
-        <button class="nav-item" data-view="dbt" data-tooltip="Gerador dbt" type="button" aria-label="Gerador dbt">
+        <button class="nav-item" data-view="dbt" data-tooltip="Gerador SQL" type="button" aria-label="Gerador SQL">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
             stroke-linejoin="round">
             <path d="M14.5 6.5a4 4 0 0 1-5.4 5.4L4 17l2 2 5.1-5.1a4 4 0 0 1 5.4-5.4l-2.6 2.6-1.5-.4-.4-1.5Z" />
           </svg>
-          <span class="nav-label">[3] GERADOR dbt</span>
+          <span class="nav-label">[3] GERADOR SQL</span>
         </button>
         <button class="nav-item" data-view="mart" data-tooltip="Fato/Dimensão" type="button" aria-label="Fato/Dimensão">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -131,7 +131,7 @@
               </div>
               <div class="hero-feature">
                 <span class="hero-feature-icon">🛠️</span>
-                <p class="hero-feature-title">STAGE GENERATOR dbt</p>
+                <p class="hero-feature-title">GERADOR SQL</p>
                 <p class="hero-feature-desc">Modelos de staging SQL + sources.yml adaptados à sua configuração de
                   macros.</p>
               </div>
@@ -221,8 +221,9 @@
 
         <section id="view-dbt" class="view hidden">
           <p class="data-source-note">
-            Gera o modelo de staging (<strong>SQL</strong>) e o <strong>sources.yml</strong> para dbt a partir dos
-            campos e tipo da tabela, estruturado conforme suas configurações de macros na aba Ajustes.
+            Gera a consulta <strong>SQL</strong> de staging (e o <strong>sources.yml</strong> do dbt, se a opção "Gerar
+            com dbt" estiver habilitada em Configurações) a partir dos campos e tipo da tabela, estruturado conforme
+            suas configurações de macros na aba Ajustes.
           </p>
 
           <div class="dbt-options">
@@ -241,18 +242,14 @@
               <span>Schema (sources.yml e SQL)</span>
               <input type="text" id="dbt-schema" placeholder="dataspherev2" autocomplete="off" />
             </label>
-            <label class="config-checkbox-label">
-              <input type="checkbox" id="dbt-plain-sql" />
-              <span>Gerar apenas SQL (sem dbt)</span>
-            </label>
-            <button id="btn-generate-dbt" class="primary-button" type="button">Gerar dbt</button>
+            <button id="btn-generate-dbt" class="primary-button" type="button">Gerar SQL</button>
           </div>
 
           <div id="dbt-warnings" class="dbt-warnings hidden"></div>
 
           <div id="dbt-loading" class="loading-card hidden">
             <span class="spinner" aria-hidden="true"></span>
-            <span>Gerando artefatos dbt...</span>
+            <span>Gerando artefatos SQL...</span>
           </div>
 
           <div id="dbt-output" class="dbt-output hidden">
@@ -288,6 +285,10 @@
                 <input type="text" id="mart-add-input" class="search-input" placeholder="Adicionar tabela ao canvas..."
                   autocomplete="off" />
                 <button id="btn-mart-add" class="primary-button search-submit-button" type="button">Adicionar</button>
+              </div>
+              <div id="mart-add-loading" class="search-inline-status hidden">
+                <span class="spinner" aria-hidden="true"></span>
+                <span>[!] ADICIONANDO TABELA...</span>
               </div>
               <ul id="mart-add-autocomplete" class="autocomplete-list hidden"></ul>
             </div>
@@ -370,6 +371,11 @@
                 <label class="config-checkbox-label">
                   <input type="checkbox" id="config-dbt-use-macros" checked />
                   <span>Utilizar macros customizadas do dbt (nullif_empty, to_date, etc.)</span>
+                </label>
+                <label class="config-checkbox-label">
+                  <input type="checkbox" id="config-generate-with-dbt" checked />
+                  <span>Gerar com dbt (sources.yml + macros). Desmarque para gerar apenas SQL puro no Gerador
+                    SQL.</span>
                 </label>
               </div>
             </div>

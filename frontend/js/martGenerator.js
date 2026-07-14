@@ -22,6 +22,7 @@ import { generateMart, getTable, searchTables } from "./api.js";
 
 const addInput = document.getElementById("mart-add-input");
 const addAutocomplete = document.getElementById("mart-add-autocomplete");
+const addLoading = document.getElementById("mart-add-loading");
 const btnAdd = document.getElementById("btn-mart-add");
 const canvasContainer = document.getElementById("canvas-mart");
 const martTypeSelect = document.getElementById("mart-type");
@@ -339,10 +340,13 @@ function renderAddAutocomplete(results) {
     item.addEventListener("click", async () => {
       addAutocomplete.classList.add("hidden");
       addInput.value = "";
+      addLoading.classList.remove("hidden");
       try {
         await addTableToCanvas(item.dataset.tableName);
       } catch (error) {
         showMessage(error.message || "Erro ao adicionar tabela.", true);
+      } finally {
+        addLoading.classList.add("hidden");
       }
     });
   });
@@ -354,6 +358,9 @@ function renderAddAutocomplete(results) {
  * usually already known, e.g. "VBAP"), so most adds skip the extra
  * search-then-click step entirely; only falls back to the fuzzy
  * name/description search (with a picklist) when that exact lookup fails.
+ * Shows the same inline loading indicator as the home search while either
+ * request is in flight, so a slow DDIC fetch reads as "loading" and not as
+ * an unresponsive button.
  */
 async function performAdd() {
   const term = addInput.value.trim();
@@ -361,23 +368,30 @@ async function performAdd() {
 
   clearMessage();
   addAutocomplete.classList.add("hidden");
+  addLoading.classList.remove("hidden");
+  btnAdd.disabled = true;
 
   try {
-    await addTableToCanvas(term.toUpperCase());
-    addInput.value = "";
-    return;
-  } catch (directError) {
-    // Not an exact/known table name — fall through to fuzzy search below.
-  }
-
-  try {
-    const results = await searchTables(term);
-    if (results.length === 0) {
-      showMessage(`Nenhuma tabela encontrada para "${term}".`, true);
+    try {
+      await addTableToCanvas(term.toUpperCase());
+      addInput.value = "";
+      return;
+    } catch (directError) {
+      // Not an exact/known table name — fall through to fuzzy search below.
     }
-    renderAddAutocomplete(results);
-  } catch (error) {
-    showMessage(error.message || "Erro ao buscar tabelas.", true);
+
+    try {
+      const results = await searchTables(term);
+      if (results.length === 0) {
+        showMessage(`Nenhuma tabela encontrada para "${term}".`, true);
+      }
+      renderAddAutocomplete(results);
+    } catch (error) {
+      showMessage(error.message || "Erro ao buscar tabelas.", true);
+    }
+  } finally {
+    addLoading.classList.add("hidden");
+    btnAdd.disabled = false;
   }
 }
 

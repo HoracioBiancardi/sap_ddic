@@ -1,14 +1,20 @@
 /**
- * "Gerador dbt" tab: turns the already-fetched table contract into a dbt
- * staging SQL model + sources.yml, via GET /api/table/{name}/dbt.
+ * "Gerador SQL" tab: turns the already-fetched table contract into a
+ * staging SQL model (+ dbt sources.yml, when enabled), via
+ * GET /api/table/{name}/dbt.
  *
  * The load type and schema inputs are pre-filled from the first,
  * override-free call (which applies the same FULL/INCREMENTAL heuristic as
  * the sibling datasphere_generator_dbt project); the user can then edit them
- * and click "Gerar dbt" again to regenerate with overrides. The watermark
+ * and click "Gerar SQL" again to regenerate with overrides. The watermark
  * input is informational only — it documents which SAP field to use for the
  * table's bronze ingestion config, but never changes the generated SQL/YML,
  * which always relies on the bronze layer's own dt_ingestao/hash_pk columns.
+ *
+ * Whether to include the dbt scaffolding (sources.yml + macros) or emit
+ * plain ad-hoc SQL is a fixed, persisted preference set in Configurações
+ * ("Gerar com dbt"), not a per-generation toggle — see initConfigPage in
+ * app.js, which writes it to localStorage under "dbt_enabled".
  */
 
 import { getDbtArtifacts } from "./api.js";
@@ -16,7 +22,6 @@ import { getDbtArtifacts } from "./api.js";
 const loadTypeSelect = document.getElementById("dbt-load-type");
 const watermarkInput = document.getElementById("dbt-watermark");
 const schemaInput = document.getElementById("dbt-schema");
-const plainSqlCheckbox = document.getElementById("dbt-plain-sql");
 const warningsBox = document.getElementById("dbt-warnings");
 const loadingCard = document.getElementById("dbt-loading");
 const outputBox = document.getElementById("dbt-output");
@@ -67,7 +72,7 @@ async function generate(tableName, { useCurrentInputs } = {}) {
   outputBox.classList.add("hidden");
   clearMessage();
 
-  const plainSql = plainSqlCheckbox.checked;
+  const plainSql = localStorage.getItem("dbt_enabled") === "false";
 
   try {
     const defaultSchema = localStorage.getItem("dbt_schema") || "dataspherev2";
@@ -87,7 +92,7 @@ async function generate(tableName, { useCurrentInputs } = {}) {
     const artifacts = await getDbtArtifacts(tableName, overrides);
     renderArtifacts(artifacts, plainSql);
   } catch (error) {
-    showMessage(error.message || "Erro ao gerar os artefatos dbt.", true);
+    showMessage(error.message || "Erro ao gerar os artefatos SQL.", true);
   } finally {
     loadingCard.classList.add("hidden");
   }
