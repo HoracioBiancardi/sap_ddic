@@ -34,11 +34,19 @@ _TABCLASS_ALIASES: dict[str, str] = {
 # this replica (e.g. BKPF/BSEG -> "FB", VBAK/VBAP -> "VA"). Lets a term like
 # "financeiro" surface tables whose description never contains that word,
 # since SAP's own DDTEXT is technical ("Documento contabil: Cabecalho"), not
-# business-domain phrasing. The seed tables are ranked first in the query
-# (see `search`) since a whole APPLCLASS commonly spans hundreds of tables —
-# alphabetical/length ordering alone doesn't reliably put the canonical
-# tables (e.g. VBAK/VBAP) ahead of unrelated same-class tables (e.g. the
-# short-named "A0xx" pricing condition tables also classed under "VA").
+# business-domain phrasing. "applclass_codes" can be left as [] for a domain
+# whose APPLCLASS hasn't been empirically confirmed yet — the SQLAlchemy
+# expanding bindparam treats an empty tuple as "matches nothing", so the
+# seed_tables hits alone still surface reliably.
+#
+# "seed_tables" order is meaningful: it's the *display* order among domain
+# hits (see the ORDER BY in `search`), so the first table listed is treated
+# as the canonical/"main" table for that concept (e.g. VBAK before VBAP for
+# "pedido") — it is not just an unordered membership set. Listing order is
+# what lets a combined-concept domain like PEDIDOS (below) put its more
+# generic reading (sales order) ahead of the narrower one (purchase order)
+# regardless of the tables' own alphabetical order (EKKO would otherwise
+# sort before VBAK by accident).
 _BUSINESS_DOMAINS: list[dict] = [
     {
         "synonyms": {"FINANCEIRO", "CONTABIL", "CONTABILIDADE"},
@@ -46,22 +54,38 @@ _BUSINESS_DOMAINS: list[dict] = [
         "seed_tables": ["BKPF", "BSEG", "BSIK", "BSAK", "BSID", "BSAD", "SKA1", "SKB1"],
     },
     {
-        "synonyms": {"VENDAS", "COMERCIAL"},
+        "synonyms": {
+            "VENDAS", "COMERCIAL",
+            "PEDIDO DE VENDA", "PEDIDOS DE VENDA", "ORDEM DE VENDA", "ORDENS DE VENDA",
+        },
         "applclass_codes": ["VA", "VF"],
         "seed_tables": ["VBAK", "VBAP", "VBRK", "VBRP"],
     },
     {
-        "synonyms": {"FATURAMENTO"},
+        "synonyms": {"FATURAMENTO", "NOTA FISCAL", "NOTAS FISCAIS", "FATURA", "FATURAS"},
         "applclass_codes": ["VF"],
         "seed_tables": ["VBRK", "VBRP"],
     },
     {
-        "synonyms": {"COMPRAS", "SUPRIMENTOS"},
+        "synonyms": {
+            "COMPRAS", "SUPRIMENTOS",
+            "PEDIDO DE COMPRA", "PEDIDOS DE COMPRA", "ORDEM DE COMPRA", "ORDENS DE COMPRA",
+        },
         "applclass_codes": ["ME"],
         "seed_tables": ["EKKO", "EKPO"],
     },
     {
-        "synonyms": {"MATERIAIS", "MATERIAL", "ESTOQUE"},
+        # Bare "pedido"/"pedidos" is ambiguous between sales and purchase
+        # orders; per product decision, show both, sales-order tables first
+        # (see the seed_tables-order note above). "Pedidos abertos" can't
+        # filter by open status — this only browses DDIC metadata, not live
+        # documents — so it's mapped to the same header/item tables.
+        "synonyms": {"PEDIDO", "PEDIDOS", "PEDIDOS ABERTOS", "PEDIDO ABERTO", "PEDIDOS EM ABERTO"},
+        "applclass_codes": ["VA", "ME"],
+        "seed_tables": ["VBAK", "VBAP", "EKKO", "EKPO"],
+    },
+    {
+        "synonyms": {"MATERIAIS", "MATERIAL", "ESTOQUE", "PRODUTO", "PRODUTOS"},
         "applclass_codes": ["MG"],
         "seed_tables": ["MARA", "MARC", "MARD", "MBEW"],
     },
@@ -74,6 +98,28 @@ _BUSINESS_DOMAINS: list[dict] = [
         "synonyms": {"CONTROLADORIA", "CUSTOS"},
         "applclass_codes": ["KA", "KS", "KSS"],
         "seed_tables": ["COEP", "CSKS", "CSKB"],
+    },
+    {
+        "synonyms": {"CLIENTE", "CLIENTES"},
+        "applclass_codes": [],
+        "seed_tables": ["KNA1", "KNVV", "KNB1"],
+    },
+    {
+        "synonyms": {"FORNECEDOR", "FORNECEDORES"},
+        "applclass_codes": [],
+        "seed_tables": ["LFA1", "LFB1", "LFM1"],
+    },
+    {
+        "synonyms": {"ENTREGA", "ENTREGAS", "REMESSA", "REMESSAS"},
+        "applclass_codes": [],
+        "seed_tables": ["LIKP", "LIPS"],
+    },
+    {
+        "synonyms": {
+            "FUNCIONARIO", "FUNCIONARIOS", "COLABORADOR", "COLABORADORES", "RECURSOS HUMANOS",
+        },
+        "applclass_codes": [],
+        "seed_tables": ["PA0000", "PA0001", "PA0002"],
     },
 ]
 
@@ -449,13 +495,20 @@ class DDICRepository:
         domain = _SYNONYM_TO_DOMAIN.get(term.upper())
         if domain and len(results) < limit:
             seed_tables = tuple(domain["seed_tables"])
-            # Seed tables are ranked first (CASE WHEN ... THEN 0 ELSE 1),
-            # then shorter non-namespaced names: classic SAP core tables
-            # (BKPF, BSEG, KNA1...) date back to the original R/3 naming
-            # convention and are short, while customer/partner namespaces
-            # ("/partner/...", "Y*", "Z*") and add-on tables tend to be long
-            # and would otherwise crowd out the tables actually meant to
-            # surface for a business-domain search.
+            # Seed tables are ranked first, in the exact order they're
+            # listed in seed_tables (the first one is the domain's "main"
+            # table — see the note above _BUSINESS_DOMAINS), then
+            # non-seed applclass hits fall back to shorter non-namespaced
+            # names: classic SAP core tables (BKPF, BSEG, KNA1...) date back
+            # to the original R/3 naming convention and are short, while
+            # customer/partner namespaces ("/partner/...", "Y*", "Z*") and
+            # add-on tables tend to be long and would otherwise crowd out
+            # the tables actually meant to surface for a business-domain
+            # search. seed_tables is always sourced from our own hardcoded
+            # _BUSINESS_DOMAINS, never from user input, so splicing table
+            # names into the CASE literal here is safe (same trust boundary
+            # as `_qualified`'s schema/table interpolation).
+            seed_rank_sql = " ".join(f"WHEN '{name}' THEN {index}" for index, name in enumerate(seed_tables))
             domain_rows = self.connector.run_query(
                 f"SELECT L.TABNAME, T.DDTEXT "
                 f"FROM {self._qualified('DD02L')} L "
@@ -465,7 +518,7 @@ class DDICRepository:
                 f"  AND L.TABNAME NOT LIKE '/%' "
                 f"  AND L.TABNAME NOT LIKE 'Y%' "
                 f"  AND L.TABNAME NOT LIKE 'Z%' "
-                f"ORDER BY CASE WHEN L.TABNAME IN :seed_tables THEN 0 ELSE 1 END, "
+                f"ORDER BY CASE L.TABNAME {seed_rank_sql} ELSE {len(seed_tables)} END, "
                 f"  LENGTH(L.TABNAME) ASC, L.TABNAME ASC LIMIT :limit",
                 {
                     "language": self.language,
