@@ -96,6 +96,12 @@ class TechnicalStats(BaseModel):
         supports_incremental_load: Whether at least one candidate field was
             found. This is a structural heuristic, not confirmation that
             delta extraction is actually configured for this table.
+        creation_date_candidate_fields: Field names recognized as common SAP
+            "created on" timestamps (e.g. ``ERDAT``, ``ERSDA``). Better
+            suited than a "last changed" field as the cutoff for the very
+            first (full) load, since old or never-updated records commonly
+            have their change-date field zero-filled (``"00000000"``) while
+            the creation-date field is always populated.
     """
 
     field_count: int
@@ -105,6 +111,7 @@ class TechnicalStats(BaseModel):
     size_category: str
     incremental_candidate_fields: list[str]
     supports_incremental_load: bool
+    creation_date_candidate_fields: list[str] = []
 
 
 class TableContract(BaseModel):

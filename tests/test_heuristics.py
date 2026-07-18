@@ -207,3 +207,19 @@ class TestFindIncrementalCandidateFields:
         """A table with no recognized change-date field returns an empty list."""
         result = TableClassifier.find_incremental_candidate_fields(["MANDT", "MATNR"])
         assert result == []
+
+
+class TestFindCreationDateCandidateFields:
+    """Tests for TableClassifier.find_creation_date_candidate_fields."""
+
+    def test_finds_known_creation_date_fields(self) -> None:
+        """ERDAT, ERSDA and CPUDT are recognized as initial-load candidates."""
+        result = TableClassifier.find_creation_date_candidate_fields(
+            ["MANDT", "MATNR", "ERDAT", "ERSDA", "CPUDT", "AEDAT"]
+        )
+        assert result == ["ERDAT", "ERSDA", "CPUDT"]
+
+    def test_empty_when_no_candidates(self) -> None:
+        """A table with no recognized creation-date field returns an empty list."""
+        result = TableClassifier.find_creation_date_candidate_fields(["MANDT", "MATNR"])
+        assert result == []

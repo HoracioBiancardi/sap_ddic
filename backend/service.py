@@ -137,15 +137,16 @@ class MetadataService:
             business_description = f"[Tabela de Sistema] {business_description}"
 
         footprint = self.classifier.compute_record_footprint(raw_columns)
-        incremental_candidates = self.classifier.find_incremental_candidate_fields(
-            [c["column_name"] for c in raw_columns]
-        )
+        column_names = [c["column_name"] for c in raw_columns]
+        incremental_candidates = self.classifier.find_incremental_candidate_fields(column_names)
+        creation_date_candidates = self.classifier.find_creation_date_candidate_fields(column_names)
         table_attributes = self.repository.fetch_table_attributes(table_name)
         technical_stats = {
             **footprint,
             **table_attributes,
             "incremental_candidate_fields": incremental_candidates,
             "supports_incremental_load": bool(incremental_candidates),
+            "creation_date_candidate_fields": creation_date_candidates,
         }
 
         return {

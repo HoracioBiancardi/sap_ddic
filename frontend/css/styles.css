@@ -445,6 +445,21 @@ body.flicker-enabled {
   outline: none;
 }
 
+.field-filter-row {
+  margin-bottom: 0.75rem;
+  max-width: 420px;
+}
+
+.field-filter-row::before {
+  content: "FILTER:>";
+}
+
+.filter-empty-row {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1rem;
+}
+
 .primary-button {
   appearance: none;
   border: 1px solid var(--accent);

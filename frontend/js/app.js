@@ -30,6 +30,7 @@ import {
 const searchInput = document.getElementById("search-input");
 const btnSearch = document.getElementById("btn-search");
 const searchResultsList = document.getElementById("autocomplete-list");
+const fieldFilterInput = document.getElementById("field-filter-input");
 const chkShowAllLineage = document.getElementById("chk-show-all-lineage");
 const lineageToggleLabel = document.getElementById("lineage-toggle-label");
 const navHomeItem = document.querySelector('.nav-item[data-view="home"]');
@@ -268,6 +269,15 @@ function updateLineageToggleLabel(contract) {
     hidden > 0 ? `Mostrar todas as tabelas (${hidden} ocultas de ${total})` : `Mostrar todas as tabelas (${total})`;
 }
 
+function renderColumnsTableFiltered() {
+  renderColumnsTable(
+    state.contract,
+    (column) => renderEnumModal(column),
+    (checkTableName) => goToTable(checkTableName),
+    fieldFilterInput.value
+  );
+}
+
 function goToTable(tableName) {
   if (state.currentTable) {
     tableHistory.push(state.currentTable);
@@ -301,11 +311,8 @@ async function selectTable(tableName) {
     setTopbarTable(contract.table_name, contract.business_description);
 
     renderSummary(contract);
-    renderColumnsTable(
-      contract,
-      (column) => renderEnumModal(column),
-      (checkTableName) => goToTable(checkTableName)
-    );
+    fieldFilterInput.value = "";
+    renderColumnsTableFiltered();
     renderRelations(contract, (checkTableName) => goToTable(checkTableName));
     renderJson(contract);
     updateLineageToggleLabel(contract);
@@ -329,6 +336,8 @@ async function selectTable(tableName) {
     showSearchError(error.message || "Erro ao buscar a tabela.");
   }
 }
+
+fieldFilterInput.addEventListener("input", renderColumnsTableFiltered);
 
 btnSearch.addEventListener("click", performSearch);
 

@@ -97,8 +97,19 @@ export function renderSummary(contract) {
 
   const stats = contract.technical_stats;
   const loadTypeLabel = stats.supports_incremental_load ? "Incremental" : "Full";
+  const creationFields = stats.creation_date_candidate_fields || [];
+  // A "last changed" field (AEDAT, LAEDA...) is frequently zero-filled
+  // ("00000000") on old or never-updated records, which makes it useless
+  // as the cutoff for the very first extraction even though it's fine for
+  // delta runs afterward — so when a creation-date field is also available,
+  // surface both: one watermark for the initial full load, another to
+  // switch to for every incremental run after that.
   const loadTypeHint = stats.supports_incremental_load
-    ? `via ${stats.incremental_candidate_fields.join(", ")}`
+    ? creationFields.length > 0
+      ? `Full inicial via ${creationFields.join(", ")} · depois trocar para ${stats.incremental_candidate_fields.join(
+          ", "
+        )} (pode estar zerado em registros antigos)`
+      : `via ${stats.incremental_candidate_fields.join(", ")}`
     : "nenhum campo de data de alteração reconhecido";
 
   const items = [
@@ -159,8 +170,10 @@ export function renderSummary(contract) {
  * @param {(tableName: string) => void} onNavigateToTable - Called with the
  *   check table's name when its 🔗 tag is clicked, to drill into it as a
  *   fresh search.
+ * @param {string} [filterText] - Free-text filter matched against field name,
+ *   business description and domain name (case-insensitive, substring match).
  */
-export function renderColumnsTable(contract, onShowEnum, onNavigateToTable) {
+export function renderColumnsTable(contract, onShowEnum, onNavigateToTable, filterText = "") {
   const tbody = document.getElementById("columns-table-body");
 
   // A field's valid values can come from two different places, and a field
@@ -177,8 +190,29 @@ export function renderColumnsTable(contract, onShowEnum, onNavigateToTable) {
     });
   });
 
-  tbody.innerHTML = contract.columns
-    .map((column, index) => {
+  const normalizedFilter = filterText.trim().toLowerCase();
+  const visibleColumns = normalizedFilter
+    ? contract.columns.filter((column) =>
+        [column.column_name, column.business_description, column.domain_name]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedFilter)
+      )
+    : contract.columns;
+
+  if (visibleColumns.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="filter-empty-row">Nenhum campo encontrado para "${escapeHtml(
+      filterText.trim()
+    )}".</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = visibleColumns
+    .map((column) => {
+      // contract.columns is the source of truth for indices (the enum click
+      // handler below looks the column back up in it), so resolve the index
+      // there rather than from visibleColumns, which may be a filtered subset.
+      const index = contract.columns.indexOf(column);
       const keyBadge = column.is_primary_key ? '<span class="key-badge">PK</span>' : "";
       const enumButton = column.has_fixed_values
         ? `<button class="enum-button" data-column-index="${index}">Ver valores</button>`

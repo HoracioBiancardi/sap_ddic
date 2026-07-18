@@ -60,7 +60,19 @@ _CONTFLAG_BUCKETS: dict[str, str] = {
 # backend/ddic_repository.py module docstring). Deliberately conservative:
 # a table with none of these fields is not necessarily full-load-only, it
 # just has no field this heuristic recognizes.
-_INCREMENTAL_CANDIDATE_FIELDS: frozenset[str] = frozenset({"AEDAT", "LAEDA", "UPDDA", "CPUDT"})
+_INCREMENTAL_CANDIDATE_FIELDS: frozenset[str] = frozenset({"AEDAT", "LAEDA", "UPDDA", "UPDDT"})
+
+# Well-known SAP "created on" fields. On old or never-touched records these
+# tables' own "last changed" fields (_INCREMENTAL_CANDIDATE_FIELDS above)
+# are frequently zero-filled ("00000000") — legacy data that was loaded once
+# and never updated through a transaction that stamps AEDAT/LAEDA — which
+# makes those fields useless as an initial-load cutoff even though they're
+# fine for delta runs afterward. A creation-date field doesn't have that gap
+# (every record has one), so it's the better watermark for the very first
+# full load; CPUDT is deliberately here and not in the change-date set above
+# — "Tag der Erfassung des Datensatzes" is the record's entry/creation day,
+# not a last-changed timestamp, despite the superficially similar naming.
+_CREATION_DATE_CANDIDATE_FIELDS: frozenset[str] = frozenset({"ERDAT", "ERSDA", "CPUDT"})
 
 
 class TableClassifier:
@@ -219,6 +231,27 @@ class TableClassifier:
             full-load-only.
         """
         return [c for c in column_names if c.strip().upper() in _INCREMENTAL_CANDIDATE_FIELDS]
+
+    @classmethod
+    def find_creation_date_candidate_fields(cls, column_names: list[str]) -> list[str]:
+        """Finds fields that could support an initial (full-load) watermark.
+
+        A "last changed" field (see :meth:`find_incremental_candidate_fields`)
+        is often zero-filled on old records that were loaded once and never
+        updated since, which makes it unreliable as the cutoff for the very
+        first full extraction. A "created on" field doesn't have that gap, so
+        it's the better choice for the initial load — switching to the
+        change-date field for every subsequent incremental run.
+
+        Args:
+            column_names: All field names of the table.
+
+        Returns:
+            The subset of ``column_names`` matching a well-known "created on"
+            field (e.g. ``ERDAT``, ``ERSDA``), preserving input order. Empty
+            if none are present.
+        """
+        return [c for c in column_names if c.strip().upper() in _CREATION_DATE_CANDIDATE_FIELDS]
 
     @staticmethod
     def find_associated_text_table(table_name: str, candidate_names: set[str]) -> str | None:
