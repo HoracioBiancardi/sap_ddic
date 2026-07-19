@@ -75,8 +75,10 @@ sap_ddic/
 │   ├── heuristics.py       # TableClassifier: regras de negócio (puras, sem I/O)
 │   ├── cache.py            # MetadataCache: cache local invalidado por AS4DATE
 │   ├── schemas.py          # Modelos Pydantic do contrato JSON
-│   ├── security.py         # Validação de table_name / termo de busca
+│   ├── security.py         # Validação de table_name / termo de busca / grafo de mart
 │   ├── service.py          # MetadataService: orquestra tudo acima
+│   ├── dbt_generator.py    # TableContract -> SQL/YML de staging dbt (1 tabela)
+│   ├── mart_generator.py   # Grafo de tabelas + joins -> SQL/YML/MD de mart fato/dimensão
 │   ├── logger.py           # Logger da aplicação
 │   └── main.py             # App FastAPI + rotas + arquivos estáticos
 ├── frontend/
@@ -84,18 +86,21 @@ sap_ddic/
 │   ├── css/styles.css
 │   └── js/
 │       ├── state.js        # Estado compartilhado (tabela atual, contrato)
-│       ├── api.js          # fetch wrappers (/api/search, /api/table/{nome})
+│       ├── api.js          # fetch wrappers (/api/search, /api/table/{nome}, /api/table/{nome}/dbt, /api/mart/generate)
 │       ├── views.js        # Navegação landing -> resumo -> detalhes
 │       ├── render.js       # Card de resumo, tabela de dicionário, modal de enum
-│       ├── tabs.js         # Alternância de abas (na tela de detalhes)
 │       ├── graph.js        # Grafo de linhagem (vis-network)
 │       ├── jsonViewer.js   # Syntax highlight (Prism), copiar/baixar o JSON completo
 │       ├── exports.js      # Exportações JSON recortadas: técnico, linhagem/join, campos
+│       ├── dbtGenerator.js # Tela "Gerador SQL": staging dbt de uma única tabela
+│       ├── martGenerator.js# Tela "Fato/Dimensão": canvas visual de tabelas + joins -> mart
 │       └── app.js          # Entrypoint — conecta tudo
 ├── cache/                  # Cache local por tabela (gitignored, criado em runtime)
 └── tests/
     ├── test_heuristics.py
-    └── test_cache.py
+    ├── test_cache.py
+    ├── test_dbt_generator.py
+    └── test_mart_generator.py
 ```
 
 ## Endpoints
@@ -117,6 +122,26 @@ sap_ddic/
 - `GET /api/table/{table_name}` — contrato completo de metadados da tabela
   (schema `SAPTableMetadata`), servido do cache local quando o `AS4DATE` da
   tabela no SAP não mudou desde a última extração.
+- `POST /api/table/{table_name}/dbt` — gera o model de staging dbt
+  (`stg_<tabela>.sql`) e o `sources.yml` de uma única tabela, a partir do
+  contrato já montado (sem reextração DDIC). Aceita `load_type` (FULL/
+  INCREMENTAL, auto-sugerido se omitido), `watermark_column` (informativo —
+  não altera o SQL, que sempre usa `dt_ingestao`/`hash_pk` da camada bronze
+  para o filtro incremental), overrides de `source_name`/`database`/
+  `dbt_schema`, `plain_sql` (pula todo o scaffolding dbt e devolve um
+  `SELECT` puro) e `use_business_alias` (alias curto a partir da descrição
+  de negócio, ex. `numero_material`, em vez do nome de campo SAP cru). Tela
+  "Gerador SQL" no frontend.
+- `POST /api/mart/generate` — gera um model dbt de fato/dimensão
+  (SQL + YML + Markdown com diagrama Mermaid) a partir de um grafo arbitrário
+  de tabelas ("boxes") e seus joins, montado visualmente na tela
+  "Fato/Dimensão". Cada box tem um `node_id` próprio (não necessariamente
+  igual ao `table_name`), permitindo que a mesma tabela SAP apareça duas
+  vezes com papéis diferentes (ex.: `KNA1` como cliente e como pagador em
+  `BSEG`). Joins podem ser auto-detectados (FK real da `DD08L`) ou
+  desenhados manualmente, para relacionamentos que o DDIC não modela como FK
+  formal (ex.: cadeias de fluxo de documento via `VBFA`). Sempre gera
+  `materialized="table"` (sem variante incremental).
 
 ### Busca por área de negócio
 

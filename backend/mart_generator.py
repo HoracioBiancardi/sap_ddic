@@ -131,11 +131,28 @@ def _build_join_order(
 
 
 def _render_filter(alias: str, filter_: JoinFilter) -> str:
+    """Renders one ``alias.field <op> 'value'`` condition, SQL-escaping the value.
+
+    Args:
+        alias: The SQL alias (node ID, lowercased) the filter's field belongs to.
+        filter_: The field/operator/value condition to render.
+
+    Returns:
+        The rendered SQL condition fragment.
+    """
     escaped_value = filter_.value.replace("'", "''")
     return f"{alias}.{_quote_if_needed(filter_.field)} {filter_.operator} '{escaped_value}'"
 
 
 def _join_condition(join: _ResolvedJoin) -> str:
+    """Renders a join's full ``ON`` clause: field-equality pairs plus any side filters.
+
+    Args:
+        join: The resolved join to render.
+
+    Returns:
+        The rendered SQL condition, ANDing every field pair and filter.
+    """
     spec = join.join_spec
     left_alias = spec.left_node.lower()
     right_alias = spec.right_node.lower()
@@ -162,6 +179,25 @@ def _build_sql(
     use_macros: bool = True,
     sql_template: str | None = None,
 ) -> str:
+    """Renders the mart model's ``<model_name>.sql`` body: root SELECT plus every LEFT JOIN.
+
+    Args:
+        root_node: ``node_id`` of the box anchoring the ``FROM`` clause.
+        root_contract: The root box's table contract.
+        joins: Every other box, in the walk order returned by
+            :func:`_build_join_order`, each carrying the join spec that
+            reaches it.
+        model_name: The generated dbt model's file/alias name.
+        source_name: The dbt source name used in ``source(...)`` references.
+        alias_maps: ``node_id -> {column_name: SQL alias}`` for every box.
+        use_macros: Whether to render dbt macros (``to_date``, etc.) or their
+            plain-SQL equivalents.
+        sql_template: Optional caller-supplied template with placeholders to
+            fill instead of the built-in layout.
+
+    Returns:
+        The rendered SQL model content.
+    """
     root_alias = root_node.lower()
 
     root_alias_map = alias_maps[root_node]
@@ -242,6 +278,23 @@ def _build_yml(
     alias_maps: dict[str, dict[str, str]],
     yml_template: str | None = None,
 ) -> str:
+    """Renders the mart model's ``<model_name>.yml`` ``models:`` doc block.
+
+    Args:
+        root_node: ``node_id`` of the box anchoring the model.
+        root_contract: The root box's table contract.
+        joins: Every other box, in walk order, each carrying the join spec
+            that reaches it.
+        mart_type: ``"FCT"`` or ``"DIM"``, used only to label the model's
+            description.
+        model_name: The generated dbt model's name.
+        alias_maps: ``node_id -> {column_name: SQL alias}`` for every box.
+        yml_template: Optional caller-supplied template to fill instead of
+            the built-in layout.
+
+    Returns:
+        The rendered YAML content.
+    """
     root_alias_map = alias_maps[root_node]
     out_cols = []
     for column in root_contract.columns:
@@ -306,6 +359,15 @@ def _md_cell(text: str) -> str:
 
 
 def _describe_join(join: _ResolvedJoin) -> str:
+    """Renders a human-readable summary of a join's field pairs and filters
+    for the generated Markdown documentation table.
+
+    Args:
+        join: The resolved join to describe.
+
+    Returns:
+        A string like ``"KUNNR = KUNNR (bseg.VBTYP_N = 'J')"``.
+    """
     spec = join.join_spec
     pairs = ", ".join(f"{pair.left_field} = {pair.right_field}" for pair in spec.fields)
     filters = []
@@ -322,6 +384,21 @@ def _describe_join(join: _ResolvedJoin) -> str:
 def _build_documentation(
     root_node: str, root_contract: TableContract, joins: list[_ResolvedJoin], mart_type: str, model_name: str, sql: str
 ) -> str:
+    """Renders the mart's human-readable Markdown doc: Mermaid lineage diagram,
+    a per-table summary and the generated SQL itself.
+
+    Args:
+        root_node: ``node_id`` of the box anchoring the model.
+        root_contract: The root box's table contract.
+        joins: Every other box, in walk order, each carrying the join spec
+            that reaches it.
+        mart_type: ``"FCT"`` or ``"DIM"``, used to label the model's role.
+        model_name: The generated dbt model's name.
+        sql: The already-rendered SQL, embedded verbatim in the document.
+
+    Returns:
+        The rendered Markdown document.
+    """
     role_label = "Fato" if mart_type == "FCT" else "Dimensão"
     grain_fields = ", ".join(c.column_name for c in root_contract.columns if c.is_primary_key)
 

@@ -220,6 +220,25 @@ def _build_sql(
     sql_template: str | None = None,
     alias_map: dict[str, str] | None = None,
 ) -> str:
+    """Renders the ``stg_<table>.sql`` staging model body.
+
+    Args:
+        contract: The table's full metadata contract.
+        load_type: ``"FULL"`` or ``"INCREMENTAL"``, controlling which config
+            block, audit columns and (when incremental) delta-detection CTE
+            are emitted.
+        source_name: The dbt source name used in ``source(...)`` references.
+        use_macros: Whether to render dbt macros (``to_date``, etc.) or their
+            plain-SQL equivalents.
+        sql_template: Optional caller-supplied template with placeholders
+            (``{table_name}``, ``{columns}``, etc.) to fill instead of the
+            built-in layout.
+        alias_map: Optional ``column_name -> SQL alias`` overrides (see
+            :func:`_build_alias_map`); falls back to :func:`_sap_alias`.
+
+    Returns:
+        The rendered SQL model content.
+    """
     table_name = contract.table_name.lower()
 
     col_lines = [
@@ -371,11 +390,29 @@ def _build_yml(
     yml_template: str | None = None,
     alias_map: dict[str, str] | None = None,
 ) -> str:
+    """Renders the ``stg_<table>.yml`` ``sources:`` block.
+
+    Args:
+        contract: The table's full metadata contract.
+        load_type: ``"FULL"`` or ``"INCREMENTAL"``, only used to tag the
+            generated model's ``materialized`` documentation.
+        source_name: The dbt source name declared in the ``sources:`` block.
+        database: The database referenced by the source.
+        schema: The schema referenced by the source.
+        yml_template: Optional caller-supplied template to fill instead of
+            the built-in layout.
+        alias_map: Optional ``column_name -> SQL alias`` overrides (see
+            :func:`_build_alias_map`); falls back to :func:`_sap_alias`.
+
+    Returns:
+        The rendered YAML content.
+    """
     table_name = contract.table_name.lower()
     description = _esc(contract.business_description)
     materialized = "incremental" if load_type == "INCREMENTAL" else "table"
 
     def _alias(column: Column) -> str:
+        """Resolves a column's SQL alias, from ``alias_map`` or :func:`_sap_alias`."""
         return (alias_map or {}).get(column.column_name, _sap_alias(column.column_name))
 
     pk_columns = [column for column in contract.columns if column.is_primary_key]
