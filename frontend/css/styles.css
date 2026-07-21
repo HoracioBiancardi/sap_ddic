@@ -633,6 +633,27 @@ body.flicker-enabled {
   line-height: 1.6;
 }
 
+.hero-stat {
+  color: var(--accent);
+  margin: 0 0 1.75rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+}
+
+.search-results-count {
+  margin: 0.4rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.matched-field {
+  display: block;
+  color: var(--accent);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
 .hero-feature-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1203,6 +1224,11 @@ body.flicker-enabled {
   position: relative;
   flex: 1 1 280px;
   min-width: 240px;
+}
+
+.tcode-search-box {
+  position: relative;
+  max-width: 520px;
 }
 
 .canvas-mart {

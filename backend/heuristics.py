@@ -75,6 +75,20 @@ _INCREMENTAL_CANDIDATE_FIELDS: frozenset[str] = frozenset({"AEDAT", "LAEDA", "UP
 _CREATION_DATE_CANDIDATE_FIELDS: frozenset[str] = frozenset({"ERDAT", "ERSDA", "CPUDT"})
 
 
+def classify_transaction_origin(devclass: str) -> str:
+    """Classifies a transaction code as standard SAP or customer-built.
+
+    Args:
+        devclass: Raw ``TADIR.DEVCLASS`` (development package) of the
+            transaction, blank if the tcode has no TADIR entry.
+
+    Returns:
+        ``"Customizada"`` if the package is in the customer namespace
+        (``Y*``/``Z*``), otherwise ``"Standard"``.
+    """
+    return "Customizada" if devclass.strip().upper().startswith(("Y", "Z")) else "Standard"
+
+
 class TableClassifier:
     """Infers business metadata for a DDIC table from its raw attributes.
 

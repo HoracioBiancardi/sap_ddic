@@ -21,6 +21,8 @@ const btnBackTable = document.getElementById("btn-back-table");
 const searchError = document.getElementById("search-error");
 const searchResultsLoading = document.getElementById("search-results-loading");
 const tableFetchLoading = document.getElementById("table-fetch-loading");
+const tableCountStat = document.getElementById("table-count-stat");
+const searchResultsCount = document.getElementById("search-results-count");
 
 // The search widget lives inside the home hero (between the subtitle and the
 // feature cards) while on the home view, and moves into the topbar for every
@@ -162,4 +164,29 @@ export function showSearchError(message) {
  */
 export function clearSearchError() {
   searchError.classList.add("hidden");
+}
+
+/**
+ * Shows the total-tables figure under the hero subtitle.
+ * @param {number} total - Total number of tables in the DDIC schema.
+ */
+export function showTableCount(total) {
+  tableCountStat.textContent = `${total} TABELAS DISPONÍVEIS NO DICIONÁRIO DDIC`;
+  tableCountStat.classList.remove("hidden");
+}
+
+/**
+ * Shows the "N resultado(s)" line above the search results list.
+ * @param {number} count - Number of results currently rendered.
+ */
+export function showSearchResultsCount(count) {
+  searchResultsCount.textContent = `${count} resultado${count === 1 ? "" : "s"}`;
+  searchResultsCount.classList.remove("hidden");
+}
+
+/**
+ * Hides the search results count line.
+ */
+export function hideSearchResultsCount() {
+  searchResultsCount.classList.add("hidden");
 }

@@ -426,6 +426,21 @@ class DDICRepository:
         )
         return bool(rows)
 
+    def count_tables(self) -> int:
+        """Counts distinct tables with a description text in the configured language.
+
+        This is the same DD02T universe tiers (1) and (3) of `search` draw
+        from, so it stays consistent with what search can actually surface.
+
+        Returns:
+            The total number of tables discoverable in the DDIC schema.
+        """
+        rows = self.connector.run_query(
+            f"SELECT COUNT(*) AS total FROM {self._qualified('DD02T')} WHERE DDLANGUAGE = :language",
+            {"language": self.language},
+        )
+        return int(rows[0]["total"]) if rows else 0
+
     def fetch_table_attributes(self, table_name: str) -> dict:
         """Fetches DD09L's data class and size category for a table.
 
@@ -460,19 +475,20 @@ class DDICRepository:
         return {"data_class": rows[0]["data_class"].strip(), "size_category": rows[0]["size_category"].strip()}
 
     def search(self, term: str, limit: int = 15) -> list[dict]:
-        """Searches tables by technical name prefix, business domain, or description.
+        """Searches tables by technical name prefix, business domain, description, or column.
 
-        Three tiers, each only queried if the previous one didn't already
+        Four tiers, each only queried if the previous one didn't already
         fill the result limit: (1) prefix match on the technical name
         (index-friendly, ranked first), (2) business-domain synonym match
         against ``DD02L.APPLCLASS`` (see ``_BUSINESS_DOMAINS``) — this is what
         lets a term like "financeiro" surface ``BKPF``/``BSEG`` even though
         neither table's technical name nor DDTEXT contains that word, (3) a
-        broad substring match on the description, as a last-resort fallback.
-        The domain tier is deliberately ranked above the description
-        substring fallback: a curated business-domain match is higher
-        confidence than a coincidental word match inside an unrelated
-        custom/partner table's description.
+        broad substring match on the description, as a last-resort fallback,
+        (4) a match against a column's technical name (``DD03L.FIELDNAME``)
+        or its business text (``DD04T.DDTEXT`` via ``ROLLNAME``), ranked
+        lowest since a field-level hit is the most indirect signal — a
+        table's own name/description is a stronger match than one of its
+        columns coincidentally matching the term.
 
         Args:
             term: Normalized, already-escaped search term (see
@@ -481,7 +497,9 @@ class DDICRepository:
 
         Returns:
             A list of dicts with ``table_name`` and ``description``, ranked
-            prefix-match first, capped at ``limit``.
+            prefix-match first, capped at ``limit``. Results surfaced only
+            via a column match also carry ``matched_field`` with the
+            technical field name that matched.
         """
         prefix_rows = self.connector.run_query(
             f"SELECT TABNAME, DDTEXT FROM {self._qualified('DD02T')} "
@@ -532,16 +550,150 @@ class DDICRepository:
                     results.append({"table_name": row["tabname"], "description": row["ddtext"]})
                     seen.add(row["tabname"])
 
+        contains = f"%{term.upper()}%"
         if len(results) < limit:
             fallback_rows = self.connector.run_query(
                 f"SELECT TABNAME, DDTEXT FROM {self._qualified('DD02T')} "
                 f"WHERE DDLANGUAGE = :language AND UPPER(DDTEXT) LIKE :contains ESCAPE '\\' "
                 f"ORDER BY TABNAME LIMIT :limit",
-                {"language": self.language, "contains": f"%{term.upper()}%", "limit": limit},
+                {"language": self.language, "contains": contains, "limit": limit},
             )
             for row in fallback_rows:
                 if row["tabname"] not in seen and len(results) < limit:
                     results.append({"table_name": row["tabname"], "description": row["ddtext"]})
                     seen.add(row["tabname"])
+
+        if len(results) < limit:
+            # LEFT JOIN DD04T because not every field has a ROLLNAME/text —
+            # a field can match purely on FIELDNAME with no business text at
+            # all. Filtering out structural include markers (FIELDNAME
+            # starting with '.') before the join matters here, unlike in
+            # fetch_columns, since this scans all of DD03L rather than one
+            # table's rows.
+            column_rows = self.connector.run_query(
+                f"SELECT F.FIELDNAME, L.TABNAME, T.DDTEXT "
+                f"FROM {self._qualified('DD03L')} F "
+                f"JOIN {self._qualified('DD02L')} L ON L.TABNAME = F.TABNAME "
+                f"JOIN {self._qualified('DD02T')} T ON T.TABNAME = L.TABNAME AND T.DDLANGUAGE = :language "
+                f"LEFT JOIN {self._qualified('DD04T')} E ON E.ROLLNAME = F.ROLLNAME AND E.DDLANGUAGE = :language "
+                f"WHERE F.FIELDNAME NOT LIKE '.%' "
+                f"  AND (F.FIELDNAME LIKE :contains ESCAPE '\\' OR UPPER(E.DDTEXT) LIKE :contains ESCAPE '\\') "
+                f"ORDER BY L.TABNAME, F.FIELDNAME LIMIT :limit",
+                {"language": self.language, "contains": contains, "limit": limit},
+            )
+            for row in column_rows:
+                if row["tabname"] not in seen and len(results) < limit:
+                    results.append(
+                        {
+                            "table_name": row["tabname"],
+                            "description": row["ddtext"],
+                            "matched_field": row["fieldname"],
+                        }
+                    )
+                    seen.add(row["tabname"])
+
+        return results
+
+    def fetch_tcode_header(self, tcode: str) -> dict | None:
+        """Fetches TSTC/TADIR header attributes for a transaction code.
+
+        ``TADIR`` is joined with a fixed ``PGMID='R3TR' AND OBJECT='TRAN'``
+        filter to isolate the object-directory entry for this specific tcode
+        (as opposed to any other object sharing the same name in a different
+        object type). The join is a LEFT JOIN because not every entry in
+        ``TSTC`` has a matching ``TADIR`` row (e.g. some parameter
+        transactions), in which case package/creation-date default to blank.
+
+        Args:
+            tcode: Technical transaction code, already validated upstream.
+
+        Returns:
+            A dict with ``pgmna``, ``dypno``, ``devclass`` and
+            ``created_on`` (the latter two blank if no TADIR entry exists),
+            or ``None`` if the tcode does not exist in TSTC. ``created_on``
+            is used as this tcode's cache-freshness value, in place of
+            DD02L's ``AS4DATE`` (TADIR has no AS4DATE/AS4TIME in this
+            replica, unlike the standard SAP field set).
+        """
+        rows = self.connector.run_query(
+            f"SELECT S.PGMNA, S.DYPNO, D.DEVCLASS, D.CREATED_ON "
+            f"FROM {self._qualified('TSTC')} S "
+            f"LEFT JOIN {self._qualified('TADIR')} D "
+            f"  ON D.PGMID = 'R3TR' AND D.OBJECT = 'TRAN' AND D.OBJ_NAME = S.TCODE "
+            f"WHERE S.TCODE = :tcode",
+            {"tcode": tcode},
+        )
+        if not rows:
+            return None
+
+        row = rows[0]
+        return {
+            "pgmna": row["pgmna"].strip(),
+            "dypno": row["dypno"].strip(),
+            "devclass": (row["devclass"] or "").strip(),
+            "created_on": (row["created_on"] or "").strip(),
+        }
+
+    def fetch_tcode_text(self, tcode: str) -> str:
+        """Fetches the business description of a transaction code.
+
+        Args:
+            tcode: Technical transaction code.
+
+        Returns:
+            The description text for the configured language, falling back
+            to the tcode itself if no text exists in that language.
+        """
+        rows = self.connector.run_query(
+            f"SELECT TTEXT FROM {self._qualified('TSTCT')} "
+            f"WHERE TCODE = :tcode AND SPRSL = :language",
+            {"tcode": tcode, "language": self.language},
+        )
+        return rows[0]["ttext"].strip() if rows else tcode
+
+    def search_tcodes(self, term: str, limit: int = 15) -> list[dict]:
+        """Searches transaction codes by technical code prefix or description.
+
+        Two tiers, mirroring :meth:`search`: (1) prefix match on the
+        technical tcode (index-friendly, ranked first), (2) a substring
+        match on the description text, as a fallback once the prefix tier
+        is exhausted.
+
+        Args:
+            term: Normalized, already-escaped search term (see
+                :class:`backend.security.InputValidator`).
+            limit: Maximum number of results to return.
+
+        Returns:
+            A list of dicts with ``tcode`` and ``description``, ranked
+            prefix-match first, capped at ``limit``.
+        """
+        prefix_rows = self.connector.run_query(
+            f"SELECT S.TCODE, T.TTEXT "
+            f"FROM {self._qualified('TSTC')} S "
+            f"LEFT JOIN {self._qualified('TSTCT')} T ON T.TCODE = S.TCODE AND T.SPRSL = :language "
+            f"WHERE S.TCODE LIKE :prefix ESCAPE '\\' "
+            f"ORDER BY S.TCODE LIMIT :limit",
+            {"language": self.language, "prefix": f"{term}%", "limit": limit},
+        )
+        results = [
+            {"tcode": r["tcode"], "description": (r["ttext"] or r["tcode"]).strip()} for r in prefix_rows
+        ]
+        seen = {r["tcode"] for r in results}
+
+        if len(results) < limit:
+            contains = f"%{term.upper()}%"
+            fallback_rows = self.connector.run_query(
+                f"SELECT S.TCODE, T.TTEXT "
+                f"FROM {self._qualified('TSTCT')} T "
+                f"JOIN {self._qualified('TSTC')} S ON S.TCODE = T.TCODE "
+                f"WHERE T.SPRSL = :language AND UPPER(T.TTEXT) LIKE :contains ESCAPE '\\' "
+                f"ORDER BY S.TCODE LIMIT :limit",
+                {"language": self.language, "contains": contains, "limit": limit},
+            )
+            for row in fallback_rows:
+                if row["tcode"] not in seen and len(results) < limit:
+                    results.append({"tcode": row["tcode"], "description": row["ttext"].strip()})
+                    seen.add(row["tcode"])
 
         return results

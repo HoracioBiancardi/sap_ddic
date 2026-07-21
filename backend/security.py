@@ -17,6 +17,7 @@ from backend.schemas import MartTableNode
 
 _TABLE_NAME_RE = re.compile(r"^/?[A-Z][A-Z0-9_/]{0,29}$")
 _SEARCH_TERM_RE = re.compile(r"^[A-Z0-9_ /]{1,30}$")
+_TCODE_RE = re.compile(r"^[A-Z0-9_]{1,20}$")
 
 # A mart canvas with more tables than this is almost certainly a mistake (or
 # a very slow query) rather than an intentional model.
@@ -79,6 +80,25 @@ class InputValidator:
         normalized = table_name.strip().upper()
         if not _TABLE_NAME_RE.match(normalized):
             raise HTTPException(status_code=400, detail=f"Invalid table name: {table_name!r}.")
+        return normalized
+
+    @staticmethod
+    def validate_tcode(tcode: str = Path(...)) -> str:
+        """Validates a transaction code path parameter.
+
+        Args:
+            tcode: Raw transaction code taken from the request path.
+
+        Returns:
+            The normalized (trimmed, uppercased) transaction code.
+
+        Raises:
+            HTTPException: With status 400 if the code does not match a
+                valid SAP transaction code shape.
+        """
+        normalized = tcode.strip().upper()
+        if not _TCODE_RE.match(normalized):
+            raise HTTPException(status_code=400, detail="Invalid transaction code.")
         return normalized
 
     @staticmethod

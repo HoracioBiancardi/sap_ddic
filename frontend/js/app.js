@@ -3,7 +3,7 @@
  * topbar search + swappable content view) together.
  */
 
-import { getTable, searchTables } from "./api.js";
+import { getStats, getTable, searchTables } from "./api.js";
 import { generateInitialDbtArtifacts, initDbtGenerator, resetDbtGenerator } from "./dbtGenerator.js";
 import { initExportButtons } from "./exports.js";
 import { renderLineageGraph } from "./graph.js";
@@ -11,10 +11,12 @@ import { initJsonToolbar, renderJson } from "./jsonViewer.js";
 import { initMartGenerator, refreshCanvasTheme } from "./martGenerator.js";
 import { renderColumnsTable, renderEnumModal, renderSummary, renderRelations } from "./render.js";
 import { state } from "./state.js";
+import { initTcodeSearch } from "./tcodeSearch.js";
 import {
   clearSearchError,
   getActiveView,
   hideSearchLoading,
+  hideSearchResultsCount,
   hideTableFetchLoading,
   initBackButton,
   initNav,
@@ -23,6 +25,8 @@ import {
   setTopbarTable,
   showSearchError,
   showSearchLoading,
+  showSearchResultsCount,
+  showTableCount,
   showTableFetchLoading,
   showView,
 } from "./views.js";
@@ -211,6 +215,7 @@ function renderSearchResults(results) {
   if (results.length === 0) {
     searchResultsList.classList.add("hidden");
     searchResultsList.innerHTML = "";
+    hideSearchResultsCount();
     return;
   }
 
@@ -219,11 +224,15 @@ function renderSearchResults(results) {
       (row) => `
         <li class="autocomplete-item" data-table-name="${row.table_name}">
           <span class="table-name">${row.table_name}</span>
-          <span class="table-desc">${row.description}</span>
+          <span class="table-desc">
+            ${row.description}
+            ${row.matched_field ? `<span class="matched-field">campo: ${row.matched_field}</span>` : ""}
+          </span>
         </li>`
     )
     .join("");
   searchResultsList.classList.remove("hidden");
+  showSearchResultsCount(results.length);
 
   searchResultsList.querySelectorAll(".autocomplete-item").forEach((item) => {
     item.addEventListener("click", () => {
@@ -411,7 +420,8 @@ document.addEventListener("keydown", (event) => {
     "2": "dicionario",
     "3": "dbt",
     "4": "mart",
-    "5": "config"
+    "5": "config",
+    "6": "tcode"
   };
   if (viewMap[event.key]) {
     showView(viewMap[event.key]);
@@ -423,5 +433,10 @@ initExportButtons(() => state.contract);
 initDbtGenerator(() => state.currentTable);
 initMartGenerator();
 initConfigPage();
+initTcodeSearch();
+
+getStats()
+  .then((stats) => showTableCount(stats.total_tables))
+  .catch(() => {});
 
 searchInput.focus();

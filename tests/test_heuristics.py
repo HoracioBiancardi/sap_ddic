@@ -5,7 +5,27 @@ Datasphere replica during implementation (MARA, MARC, VBAP, VBAK) plus
 synthetic CONTFLAG edge cases (configuration, temporary/system).
 """
 
-from backend.heuristics import TableClassifier
+from backend.heuristics import TableClassifier, classify_transaction_origin
+
+
+class TestClassifyTransactionOrigin:
+    """Tests for classify_transaction_origin."""
+
+    def test_z_package_is_customizada(self) -> None:
+        """A Z* package is a customer-built transaction."""
+        assert classify_transaction_origin("ZMM") == "Customizada"
+
+    def test_y_package_is_customizada(self) -> None:
+        """A Y* package is also in the customer namespace."""
+        assert classify_transaction_origin("YFI") == "Customizada"
+
+    def test_sap_package_is_standard(self) -> None:
+        """An SAP-delivered package (e.g. ME/MM) is Standard."""
+        assert classify_transaction_origin("MEXX") == "Standard"
+
+    def test_blank_package_defaults_to_standard(self) -> None:
+        """A tcode with no TADIR entry (blank devclass) defaults to Standard."""
+        assert classify_transaction_origin("") == "Standard"
 
 
 class TestClassifyTableType:

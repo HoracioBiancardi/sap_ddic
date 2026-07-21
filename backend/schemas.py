@@ -372,7 +372,56 @@ class SearchResult(BaseModel):
     Attributes:
         table_name: Technical table name.
         description: Business-friendly table description.
+        matched_field: Technical field name that matched, present only for
+            column/field-text hits — absent for table name/description/
+            domain matches.
     """
 
     table_name: str
     description: str
+    matched_field: str | None = None
+
+
+class TransactionSearchResult(BaseModel):
+    """A single row returned by ``GET /api/tcode/search``.
+
+    Attributes:
+        tcode: Technical transaction code.
+        description: Business-friendly transaction description.
+    """
+
+    tcode: str
+    description: str
+
+
+class TransactionContract(BaseModel):
+    """The full contract returned by ``GET /api/tcode/{tcode}``.
+
+    Attributes:
+        tcode: Technical transaction code.
+        description: Business-friendly transaction description.
+        program_name: ABAP program backing the transaction (TSTC.PGMNA).
+        screen_number: Initial screen number (TSTC.DYPNO).
+        package: Development package (TADIR.DEVCLASS), blank if the tcode
+            has no TADIR entry.
+        classification: ``"Standard"`` for an SAP-delivered package,
+            ``"Customizada"`` for a customer package (``Y*``/``Z*``) — see
+            :func:`backend.heuristics.classify_transaction_origin`.
+    """
+
+    tcode: str
+    description: str
+    program_name: str
+    screen_number: str
+    package: str
+    classification: Literal["Standard", "Customizada"]
+
+
+class TableCountStats(BaseModel):
+    """Response body for ``GET /api/stats``.
+
+    Attributes:
+        total_tables: Total number of tables discoverable in the DDIC schema.
+    """
+
+    total_tables: int

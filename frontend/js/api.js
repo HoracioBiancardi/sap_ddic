@@ -19,12 +19,52 @@ export async function searchTables(term) {
 }
 
 /**
+ * Fetches the total number of tables discoverable in the DDIC schema.
+ * @returns {Promise<{total_tables: number}>}
+ */
+export async function getStats() {
+  const response = await fetch("/api/stats");
+  if (!response.ok) {
+    throw new Error(`Stats failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
  * Fetches the full metadata contract for a table.
  * @param {string} tableName - Technical table name.
  * @returns {Promise<object>} The SAPTableMetadata contract.
  */
 export async function getTable(tableName) {
   const response = await fetch(`/api/table/${encodeURIComponent(tableName)}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Searches for transaction codes matching a term.
+ * @param {string} term - Raw search text typed by the user.
+ * @returns {Promise<Array<{tcode: string, description: string}>>}
+ */
+export async function searchTcodes(term) {
+  const response = await fetch(`/api/tcode/search?q=${encodeURIComponent(term)}`);
+  if (!response.ok) {
+    throw new Error(`Search failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetches the full contract for a transaction code.
+ * @param {string} tcode - Technical transaction code.
+ * @returns {Promise<object>} The TransactionContract payload (tcode,
+ *   description, program_name, screen_number, package, classification).
+ */
+export async function getTransactionContract(tcode) {
+  const response = await fetch(`/api/tcode/${encodeURIComponent(tcode)}`);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || `Request failed (${response.status})`);

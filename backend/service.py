@@ -12,7 +12,7 @@ from fastapi import HTTPException
 
 from backend.cache import MetadataCache
 from backend.ddic_repository import DDICRepository
-from backend.heuristics import TableClassifier
+from backend.heuristics import TableClassifier, classify_transaction_origin
 
 
 class MetadataService:
@@ -42,7 +42,7 @@ class MetadataService:
         self.cache = cache
 
     def search_tables(self, term: str) -> list[dict[str, str]]:
-        """Searches for tables by technical name prefix or description.
+        """Searches for tables by technical name prefix, description, or column.
 
         Args:
             term: Normalized, LIKE-escaped search term (see
@@ -51,8 +51,64 @@ class MetadataService:
         Returns:
             A list of ``{"table_name": ..., "description": ...}`` dicts,
             ranked with technical-name prefix matches first, capped at 15.
+            A result surfaced only via a matching column also carries
+            ``matched_field`` with that column's technical name.
         """
         return self.repository.search(term)
+
+    def get_table_count(self) -> int:
+        """Returns the total number of tables discoverable in the DDIC schema.
+
+        Returns:
+            The total table count.
+        """
+        return self.repository.count_tables()
+
+    def search_tcodes(self, term: str) -> list[dict[str, str]]:
+        """Searches for transaction codes by technical code prefix or description.
+
+        Args:
+            term: Normalized, LIKE-escaped search term (see
+                :class:`backend.security.InputValidator.validate_search_term`).
+
+        Returns:
+            A list of ``{"tcode": ..., "description": ...}`` dicts, ranked
+            with technical-code prefix matches first, capped at 15.
+        """
+        return self.repository.search_tcodes(term)
+
+    def get_transaction_contract(self, tcode: str) -> dict[str, Any]:
+        """Builds (or reuses from cache) the full contract for a transaction code.
+
+        Args:
+            tcode: Normalized technical transaction code (see
+                :class:`backend.security.InputValidator.validate_tcode`).
+
+        Returns:
+            A dict matching the :class:`backend.schemas.TransactionContract` shape.
+
+        Raises:
+            HTTPException: With status 404 if the tcode does not exist in
+                the replicated TSTC.
+        """
+        header = self.repository.fetch_tcode_header(tcode)
+        if header is None:
+            raise HTTPException(status_code=404, detail=f"Transaction '{tcode}' not found.")
+
+        cached = self.cache.read(tcode)
+        if cached is not None and self.cache.is_valid(cached, header["created_on"]):
+            return cached["payload"]
+
+        contract = {
+            "tcode": tcode,
+            "description": self.repository.fetch_tcode_text(tcode),
+            "program_name": header["pgmna"],
+            "screen_number": header["dypno"],
+            "package": header["devclass"],
+            "classification": classify_transaction_origin(header["devclass"]),
+        }
+        self.cache.write(tcode, contract, header["created_on"])
+        return contract
 
     def get_table_contract(self, table_name: str) -> dict[str, Any]:
         """Builds (or reuses from cache) the full metadata contract for a table.

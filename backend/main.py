@@ -1,10 +1,12 @@
 """FastAPI application entrypoint for the SAP Metadata Discovery Web App.
 
-Exposes ``GET /api/search`` and ``GET /api/table/{table_name}``, both
-validated through :class:`backend.security.InputValidator`, and serves the
-static vanilla-JS frontend from ``frontend/`` at ``/``. Serving both from the
-same FastAPI process means the browser never crosses origins, so no CORS
-configuration is needed.
+Exposes ``GET /api/search``/``GET /api/table/{table_name}`` for the DDIC
+table dictionary and ``GET /api/tcode/search``/``GET /api/tcode/{tcode}``
+for transaction codes, all validated through
+:class:`backend.security.InputValidator`, and serves the static vanilla-JS
+frontend from ``frontend/`` at ``/``. Serving both from the same FastAPI
+process means the browser never crosses origins, so no CORS configuration
+is needed.
 """
 
 from contextlib import asynccontextmanager
@@ -21,7 +23,17 @@ from backend.ddic_repository import DDICRepository
 from backend.dbt_generator import generate_dbt_artifacts
 from backend.heuristics import TableClassifier
 from backend.mart_generator import generate_mart_artifacts
-from backend.schemas import DbtArtifacts, DbtGenerateRequest, MartArtifacts, MartGenerateRequest, SearchResult, TableContract
+from backend.schemas import (
+    DbtArtifacts,
+    DbtGenerateRequest,
+    MartArtifacts,
+    MartGenerateRequest,
+    SearchResult,
+    TableContract,
+    TableCountStats,
+    TransactionContract,
+    TransactionSearchResult,
+)
 from backend.security import InputValidator
 from backend.service import MetadataService
 
@@ -83,6 +95,54 @@ def search(
         Up to 15 matching tables, technical-name prefix matches first.
     """
     return service.search_tables(q)
+
+
+@app.get("/api/tcode/search", response_model=list[TransactionSearchResult])
+def search_tcodes(
+    q: str = Depends(InputValidator.validate_search_term),
+    service: MetadataService = Depends(_get_service),
+) -> list[dict[str, str]]:
+    """Searches for SAP transaction codes by technical code prefix or description.
+
+    Args:
+        q: Validated, LIKE-escaped search term.
+        service: Injected metadata service.
+
+    Returns:
+        Up to 15 matching transaction codes, technical-code prefix matches first.
+    """
+    return service.search_tcodes(q)
+
+
+@app.get("/api/tcode/{tcode}", response_model=TransactionContract)
+def get_tcode(
+    tcode: str = Depends(InputValidator.validate_tcode),
+    service: MetadataService = Depends(_get_service),
+) -> dict:
+    """Returns the full contract for a single SAP transaction code.
+
+    Args:
+        tcode: Validated, normalized transaction code.
+        service: Injected metadata service.
+
+    Returns:
+        The transaction's contract (program, package, standard/custom
+        classification), served from cache when still fresh.
+    """
+    return service.get_transaction_contract(tcode)
+
+
+@app.get("/api/stats", response_model=TableCountStats)
+def stats(service: MetadataService = Depends(_get_service)) -> dict:
+    """Returns the total number of tables discoverable in the DDIC schema.
+
+    Args:
+        service: Injected metadata service.
+
+    Returns:
+        The total table count.
+    """
+    return {"total_tables": service.get_table_count()}
 
 
 @app.get("/api/table/{table_name:path}", response_model=TableContract)
