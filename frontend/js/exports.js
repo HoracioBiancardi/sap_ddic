@@ -81,6 +81,17 @@ function buildPrimaryKeysPayload(contract) {
 }
 
 /**
+ * Builds the primary key field names as a quoted, comma-separated list
+ * (e.g. ["MANDT", "SPRAS", ]), ready to paste into SQL/Python code.
+ * @param {object} contract - The SAPTableMetadata contract.
+ * @returns {string} Formatted key list.
+ */
+function buildKeysListText(contract) {
+  const keyNames = contract.columns.filter((c) => c.is_primary_key).map((c) => `"${c.column_name}"`);
+  return `[${keyNames.join(", ")}, ]`;
+}
+
+/**
  * Wires up the scoped export buttons (técnico / linhagem / campos / PKs).
  * @param {() => object} getContract - Returns the currently displayed contract.
  */
@@ -99,4 +110,15 @@ export function initExportButtons(getContract) {
       downloadFile(`sap_schema_${contract.table_name}_${suffix}.json`, json, "application/json");
     });
   }
+
+  const keysButton = document.getElementById("btn-export-keys");
+  keysButton.addEventListener("click", async () => {
+    const contract = getContract();
+    await navigator.clipboard.writeText(buildKeysListText(contract));
+    const original = keysButton.textContent;
+    keysButton.textContent = "Copiado!";
+    setTimeout(() => {
+      keysButton.textContent = original;
+    }, 1500);
+  });
 }

@@ -1151,7 +1151,7 @@ body.flicker-enabled {
   gap: 1rem;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1300px) {
   .dbt-output {
     grid-template-columns: 1fr;
   }
@@ -1164,6 +1164,7 @@ body.flicker-enabled {
 .dbt-artifact {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .dbt-artifact-title {
