@@ -3,7 +3,7 @@
  * topbar search + swappable content view) together.
  */
 
-import { getStats, getTable, searchTables } from "./api.js";
+import { getStats, getTable, searchColumns, searchTables } from "./api.js";
 import { generateInitialDbtArtifacts, initDbtGenerator, resetDbtGenerator } from "./dbtGenerator.js";
 import { initExportButtons } from "./exports.js";
 import { renderLineageGraph } from "./graph.js";
@@ -13,8 +13,11 @@ import { renderColumnsTable, renderEnumModal, renderSummary, renderRelations } f
 import { state } from "./state.js";
 import { initTcodeSearch } from "./tcodeSearch.js";
 import {
+  clearColumnSearchError,
   clearSearchError,
   getActiveView,
+  hideColumnSearchLoading,
+  hideColumnSearchResultsCount,
   hideSearchLoading,
   hideSearchResultsCount,
   hideTableFetchLoading,
@@ -23,6 +26,9 @@ import {
   resetToHome,
   setBackAvailable,
   setTopbarTable,
+  showColumnSearchError,
+  showColumnSearchLoading,
+  showColumnSearchResultsCount,
   showSearchError,
   showSearchLoading,
   showSearchResultsCount,
@@ -34,6 +40,9 @@ import {
 const searchInput = document.getElementById("search-input");
 const btnSearch = document.getElementById("btn-search");
 const searchResultsList = document.getElementById("autocomplete-list");
+const columnSearchInput = document.getElementById("column-search-input");
+const btnColumnSearch = document.getElementById("btn-column-search");
+const columnSearchResultsList = document.getElementById("column-autocomplete-list");
 const fieldFilterInput = document.getElementById("field-filter-input");
 const chkShowAllLineage = document.getElementById("chk-show-all-lineage");
 const lineageToggleLabel = document.getElementById("lineage-toggle-label");
@@ -270,6 +279,65 @@ async function performSearch() {
   }
 }
 
+function renderColumnSearchResults(results) {
+  if (results.length === 0) {
+    columnSearchResultsList.classList.add("hidden");
+    columnSearchResultsList.innerHTML = "";
+    hideColumnSearchResultsCount();
+    return;
+  }
+
+  columnSearchResultsList.innerHTML = results
+    .map(
+      (row) => `
+        <li class="autocomplete-item" data-table-name="${row.table_name}">
+          <span class="table-name">${row.table_name}</span>
+          <span class="table-desc">
+            ${row.description}
+            ${row.matched_field ? `<span class="matched-field">campo: ${row.matched_field}</span>` : ""}
+          </span>
+        </li>`
+    )
+    .join("");
+  columnSearchResultsList.classList.remove("hidden");
+  showColumnSearchResultsCount(results.length);
+
+  columnSearchResultsList.querySelectorAll(".autocomplete-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      searchInput.value = item.dataset.tableName;
+      columnSearchResultsList.classList.add("hidden");
+      tableHistory = [];
+      setBackAvailable(false);
+      selectTable(item.dataset.tableName);
+    });
+  });
+}
+
+async function performColumnSearch() {
+  const term = columnSearchInput.value.trim();
+  if (!term) {
+    return;
+  }
+
+  clearColumnSearchError();
+  renderColumnSearchResults([]);
+  showColumnSearchLoading();
+  btnColumnSearch.disabled = true;
+
+  try {
+    const results = await searchColumns(term);
+    renderColumnSearchResults(results);
+    if (results.length === 0) {
+      showColumnSearchError("Nenhuma coluna encontrada para esse termo.");
+    }
+  } catch (error) {
+    showColumnSearchError(error.message || "Erro ao buscar colunas.");
+  } finally {
+    hideColumnSearchLoading();
+    btnColumnSearch.disabled = false;
+  }
+}
+
 function updateLineageToggleLabel(contract) {
   const total = contract.parent_tables.length;
   const hidden = contract.parent_tables.filter((p) => p.importance === "Baixa").length;
@@ -356,17 +424,29 @@ searchInput.addEventListener("keydown", (event) => {
   }
 });
 
+btnColumnSearch.addEventListener("click", performColumnSearch);
+
+columnSearchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    performColumnSearch();
+  }
+});
+
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".topbar-search")) {
     searchResultsList.classList.add("hidden");
+    columnSearchResultsList.classList.add("hidden");
   }
 });
 
 navHomeItem.addEventListener("click", () => {
   tableHistory = [];
   searchInput.value = "";
+  columnSearchInput.value = "";
   clearSearchError();
+  clearColumnSearchError();
   renderSearchResults([]);
+  renderColumnSearchResults([]);
   resetToHome();
   searchInput.focus();
 });

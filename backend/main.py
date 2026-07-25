@@ -97,6 +97,28 @@ def search(
     return service.search_tables(q)
 
 
+@app.get("/api/search/columns", response_model=list[SearchResult])
+def search_columns(
+    q: str = Depends(InputValidator.validate_search_term),
+    service: MetadataService = Depends(_get_service),
+) -> list[dict[str, str]]:
+    """Searches for SAP tables by a matching column's technical name or business text.
+
+    Slower than ``GET /api/search`` (scans every column of every table), so
+    it's a separate endpoint rather than a fallback tier of the main table
+    search.
+
+    Args:
+        q: Validated, LIKE-escaped search term.
+        service: Injected metadata service.
+
+    Returns:
+        Up to 15 tables with a matching column, each carrying
+        ``matched_field`` with the technical field name that matched.
+    """
+    return service.search_columns(q)
+
+
 @app.get("/api/tcode/search", response_model=list[TransactionSearchResult])
 def search_tcodes(
     q: str = Depends(InputValidator.validate_search_term),

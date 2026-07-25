@@ -24,6 +24,10 @@ const tableFetchLoading = document.getElementById("table-fetch-loading");
 const tableCountStat = document.getElementById("table-count-stat");
 const searchResultsCount = document.getElementById("search-results-count");
 
+const columnSearchError = document.getElementById("column-search-error");
+const columnSearchLoading = document.getElementById("column-search-loading");
+const columnSearchResultsCount = document.getElementById("column-search-results-count");
+
 // The search widget lives inside the home hero (between the subtitle and the
 // feature cards) while on the home view, and moves into the topbar for every
 // table-scoped view, so a new table can always be searched without leaving
@@ -189,4 +193,50 @@ export function showSearchResultsCount(count) {
  */
 export function hideSearchResultsCount() {
   searchResultsCount.classList.add("hidden");
+}
+
+/**
+ * Shows the "Buscando por coluna..." indicator under the column-search input.
+ */
+export function showColumnSearchLoading() {
+  columnSearchLoading.classList.remove("hidden");
+}
+
+/**
+ * Hides the column-search loading indicator.
+ */
+export function hideColumnSearchLoading() {
+  columnSearchLoading.classList.add("hidden");
+}
+
+/**
+ * Shows an inline error message next to the column-search input.
+ * @param {string} message - Text to display.
+ */
+export function showColumnSearchError(message) {
+  columnSearchError.textContent = message;
+  columnSearchError.classList.remove("hidden");
+}
+
+/**
+ * Hides the inline column-search error message, if shown.
+ */
+export function clearColumnSearchError() {
+  columnSearchError.classList.add("hidden");
+}
+
+/**
+ * Shows the "N resultado(s)" line above the column-search results list.
+ * @param {number} count - Number of results currently rendered.
+ */
+export function showColumnSearchResultsCount(count) {
+  columnSearchResultsCount.textContent = `${count} resultado${count === 1 ? "" : "s"}`;
+  columnSearchResultsCount.classList.remove("hidden");
+}
+
+/**
+ * Hides the column-search results count line.
+ */
+export function hideColumnSearchResultsCount() {
+  columnSearchResultsCount.classList.add("hidden");
 }

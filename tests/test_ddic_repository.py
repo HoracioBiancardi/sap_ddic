@@ -1,9 +1,9 @@
 """Unit tests for backend.ddic_repository.DDICRepository.
 
-Exercises `count_tables` and the column-search tier of `search` (tier 4:
-matches against DD03L.FIELDNAME or field business text via DD04T.DDTEXT)
-against a fake connector, since these never touch the real HANA replica.
-Fixtures use realistic SAP tables/fields (MARA/MATNR, MAKT/MAKTX).
+Exercises `count_tables` and `search_by_column` (matches against
+DD03L.FIELDNAME or field business text via DD04T.DDTEXT) against a fake
+connector, since these never touch the real HANA replica. Fixtures use
+realistic SAP tables/fields (MARA/MATNR, MAKT/MAKTX).
 """
 
 from backend.ddic_repository import DDICRepository
@@ -14,10 +14,10 @@ class _FakeConnector:
 
     The real DatasphereConnector.run_query executes arbitrary parameterized
     SQL against HANA; this stand-in classifies each call into one of
-    `search`'s four tiers (or `count_tables`) by a marker unique to that
-    tier's SQL, so a test can assert both the returned rows and which tiers
-    were actually queried (e.g. that tier 4 is skipped once `limit` is
-    already filled by an earlier tier).
+    `search`'s three tiers, `search_by_column`, or `count_tables` by a
+    marker unique to that query's SQL, so a test can assert both the
+    returned rows and which tiers were actually queried (e.g. that tier 3
+    is skipped once `limit` is already filled by an earlier tier).
     """
 
     def __init__(self, rows_by_tier: dict[str, list[dict]] | None = None) -> None:
@@ -66,37 +66,49 @@ class TestCountTables:
         assert repository.count_tables() == 842
 
 
-class TestSearchColumnTier:
-    """Tests for the 4th (column-match) tier of DDICRepository.search."""
+class TestSearch:
+    """Tests for the 3 name/domain/description tiers of DDICRepository.search."""
 
-    def test_matches_only_field_name(self) -> None:
-        """A term matching DD03L.FIELDNAME surfaces its owning table with matched_field set."""
+    def test_never_queries_dd03l_column_tier(self) -> None:
+        """search() no longer falls through to a column match — that's search_by_column's job."""
         repository, connector = _repository(
-            {"column": [{"fieldname": "MATNR", "tabname": "MARA", "ddtext": "Material Master"}]}
+            {"prefix": [], "domain": [], "description": []}
         )
-        results = repository.search("MATNR")
-        assert results == [{"table_name": "MARA", "description": "Material Master", "matched_field": "MATNR"}]
-        assert connector.calls == ["prefix", "description", "column"]
+        results = repository.search("ZZZNOMATCH")
+        assert results == []
+        assert "column" not in connector.calls
 
-    def test_matches_only_field_business_text(self) -> None:
-        """A term matching only DD04T.DDTEXT (field text) surfaces the owning table via ROLLNAME."""
-        repository, _ = _repository(
-            {"column": [{"fieldname": "MAKTX", "tabname": "MAKT", "ddtext": "Textos breves de material"}]}
-        )
-        results = repository.search("MATERIAL")
-        assert results == [
-            {"table_name": "MAKT", "description": "Textos breves de material", "matched_field": "MAKTX"}
-        ]
-
-    def test_column_tier_skipped_once_limit_filled(self) -> None:
-        """Tier 4 is not queried when tier 1 (name prefix) already fills the limit."""
+    def test_description_tier_skipped_once_prefix_fills_limit(self) -> None:
+        """The description tier is not queried when the name-prefix tier already fills the limit."""
         repository, connector = _repository(
             {"prefix": [{"tabname": "MARA", "ddtext": "Material Master"}]}
         )
         results = repository.search("MA", limit=1)
         assert results == [{"table_name": "MARA", "description": "Material Master"}]
         assert connector.calls == ["prefix"]
-        assert "column" not in connector.calls
+
+
+class TestSearchByColumn:
+    """Tests for DDICRepository.search_by_column."""
+
+    def test_matches_only_field_name(self) -> None:
+        """A term matching DD03L.FIELDNAME surfaces its owning table with matched_field set."""
+        repository, connector = _repository(
+            {"column": [{"fieldname": "MATNR", "tabname": "MARA", "ddtext": "Material Master"}]}
+        )
+        results = repository.search_by_column("MATNR")
+        assert results == [{"table_name": "MARA", "description": "Material Master", "matched_field": "MATNR"}]
+        assert connector.calls == ["column"]
+
+    def test_matches_only_field_business_text(self) -> None:
+        """A term matching only DD04T.DDTEXT (field text) surfaces the owning table via ROLLNAME."""
+        repository, _ = _repository(
+            {"column": [{"fieldname": "MAKTX", "tabname": "MAKT", "ddtext": "Textos breves de material"}]}
+        )
+        results = repository.search_by_column("MATERIAL")
+        assert results == [
+            {"table_name": "MAKT", "description": "Textos breves de material", "matched_field": "MAKTX"}
+        ]
 
     def test_dedups_multiple_matching_fields_to_one_result_per_table(self) -> None:
         """A table with several matching fields yields exactly one result row for it."""
@@ -108,15 +120,15 @@ class TestSearchColumnTier:
                 ]
             }
         )
-        results = repository.search("MAT")
+        results = repository.search_by_column("MAT")
         assert len(results) == 1
         assert results[0]["table_name"] == "MARA"
         assert results[0]["matched_field"] == "MATNR"
 
-    def test_no_match_across_any_tier_returns_empty_list(self) -> None:
-        """A term matching nothing in any of the 4 tiers returns []."""
+    def test_no_match_returns_empty_list(self) -> None:
+        """A term matching no column/field-text returns []."""
         repository, _ = _repository()
-        assert repository.search("ZZZNOMATCH") == []
+        assert repository.search_by_column("ZZZNOMATCH") == []
 
 
 class TestFetchTcodeHeader:

@@ -42,7 +42,7 @@ class MetadataService:
         self.cache = cache
 
     def search_tables(self, term: str) -> list[dict[str, str]]:
-        """Searches for tables by technical name prefix, description, or column.
+        """Searches for tables by technical name prefix, business domain, or description.
 
         Args:
             term: Normalized, LIKE-escaped search term (see
@@ -51,10 +51,26 @@ class MetadataService:
         Returns:
             A list of ``{"table_name": ..., "description": ...}`` dicts,
             ranked with technical-name prefix matches first, capped at 15.
-            A result surfaced only via a matching column also carries
-            ``matched_field`` with that column's technical name.
         """
         return self.repository.search(term)
+
+    def search_columns(self, term: str) -> list[dict[str, str]]:
+        """Searches for tables by a matching column's technical name or business text.
+
+        Slower than :meth:`search_tables` (scans every column of every
+        table), so it's a separate call rather than a fallback tier baked
+        into the main table search — the caller decides when a field-level
+        search is actually wanted.
+
+        Args:
+            term: Normalized, LIKE-escaped search term (see
+                :class:`backend.security.InputValidator.validate_search_term`).
+
+        Returns:
+            A list of ``{"table_name": ..., "description": ..., "matched_field": ...}``
+            dicts, one per table with a matching column, capped at 15.
+        """
+        return self.repository.search_by_column(term)
 
     def get_table_count(self) -> int:
         """Returns the total number of tables discoverable in the DDIC schema.

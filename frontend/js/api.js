@@ -19,6 +19,21 @@ export async function searchTables(term) {
 }
 
 /**
+ * Searches for tables by a matching column's technical name or business
+ * text. Slower than searchTables (scans every column of every table), so
+ * it's a separate call rather than a fallback baked into the name search.
+ * @param {string} term - Raw search text typed by the user.
+ * @returns {Promise<Array<{table_name: string, description: string, matched_field: string}>>}
+ */
+export async function searchColumns(term) {
+  const response = await fetch(`/api/search/columns?q=${encodeURIComponent(term)}`);
+  if (!response.ok) {
+    throw new Error(`Search failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
  * Fetches the total number of tables discoverable in the DDIC schema.
  * @returns {Promise<{total_tables: number}>}
  */

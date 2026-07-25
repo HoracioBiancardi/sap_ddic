@@ -127,6 +127,21 @@
                 <p id="search-results-count" class="search-results-count hidden"></p>
                 <ul id="autocomplete-list" class="autocomplete-list hidden"></ul>
                 <p id="search-error" class="search-error hidden"></p>
+
+                <div class="search-input-row column-search-row">
+                  <input type="text" id="column-search-input" class="search-input"
+                    placeholder="BUSCAR PELO NOME DE UMA COLUNA (EX: MATNR, KUNNR...)" autocomplete="off" />
+                  <button id="btn-column-search" class="primary-button search-submit-button" type="button">
+                    BUSCAR COLUNA
+                  </button>
+                </div>
+                <div id="column-search-loading" class="search-inline-status hidden">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span>[!] SCANNING DD03L FOR MATCHING COLUMNS...</span>
+                </div>
+                <p id="column-search-results-count" class="search-results-count hidden"></p>
+                <ul id="column-autocomplete-list" class="autocomplete-list hidden"></ul>
+                <p id="column-search-error" class="search-error hidden"></p>
               </div>
             </div>
             <div class="hero-feature-grid">
