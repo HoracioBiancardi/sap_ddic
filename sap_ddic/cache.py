@@ -37,7 +37,7 @@ class MetadataCache:
 
         Args:
             table_name: Technical table name, already validated upstream by
-                :class:`backend.security.InputValidator` against a strict
+                :class:`sap_ddic.security.InputValidator` against a strict
                 DDIC object-name regex before reaching this method.
 
         Returns:

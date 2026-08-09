@@ -1,11 +1,11 @@
-"""Unit tests for backend.heuristics.TableClassifier.
+"""Unit tests for sap_ddic.heuristics.TableClassifier.
 
 Fixtures are drawn from real SAP tables verified against the actual
 Datasphere replica during implementation (MARA, MARC, VBAP, VBAK) plus
 synthetic CONTFLAG edge cases (configuration, temporary/system).
 """
 
-from backend.heuristics import TableClassifier, classify_transaction_origin
+from sap_ddic.heuristics import TableClassifier, classify_transaction_origin
 
 
 class TestClassifyTransactionOrigin:

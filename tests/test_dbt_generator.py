@@ -1,4 +1,4 @@
-"""Unit tests for backend.dbt_generator.
+"""Unit tests for sap_ddic.dbt_generator.
 
 Fixtures are the real cached contracts in cache/MARA.json (TRANSP/APPL0 ->
 FULL, no watermark needed) and cache/BSEG.json (CLUSTER/APPL1 -> INCREMENTAL,
@@ -8,8 +8,8 @@ no recognizable watermark field in this replica -> warning expected).
 import json
 from pathlib import Path
 
-from backend.dbt_generator import generate_dbt_artifacts, suggest_load_type, suggest_watermark
-from backend.schemas import Column, TableContract, TechnicalStats
+from sap_ddic.dbt_generator import generate_dbt_artifacts, suggest_load_type, suggest_watermark
+from sap_ddic.schemas import Column, TableContract, TechnicalStats
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"
 

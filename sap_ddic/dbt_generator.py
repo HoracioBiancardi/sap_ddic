@@ -3,7 +3,7 @@
 Ports the type-mapping, load-type and watermark rules from the sibling
 ``datasphere_generator_dbt`` project's ``ingestor/translator.py`` and
 ``dbt_generator/generator.py`` modules, adapted to read directly from the
-``TableContract`` that :class:`backend.service.MetadataService` already
+``TableContract`` that :class:`sap_ddic.service.MetadataService` already
 assembles — no separate DDIC re-extraction step is needed here.
 
 The generated SQL always relies on the bronze layer's own ``dt_ingestao``/
@@ -16,7 +16,7 @@ sibling ``config.py`` pattern) — it does not change the SQL/YML content.
 import re
 import unicodedata
 
-from backend.schemas import Column, DbtArtifacts, TableContract
+from sap_ddic.schemas import Column, DbtArtifacts, TableContract
 
 _STRING_TYPES = {"CLNT", "CHAR", "NUMC", "TIMS", "UNIT", "CUKY", "LANG", "ACCP"}
 _DATE_TYPES = {"DATS"}

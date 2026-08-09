@@ -19,21 +19,6 @@ export async function searchTables(term) {
 }
 
 /**
- * Searches for tables by a matching column's technical name or business
- * text. Slower than searchTables (scans every column of every table), so
- * it's a separate call rather than a fallback baked into the name search.
- * @param {string} term - Raw search text typed by the user.
- * @returns {Promise<Array<{table_name: string, description: string, matched_field: string}>>}
- */
-export async function searchColumns(term) {
-  const response = await fetch(`/api/search/columns?q=${encodeURIComponent(term)}`);
-  if (!response.ok) {
-    throw new Error(`Search failed (${response.status})`);
-  }
-  return response.json();
-}
-
-/**
  * Fetches the total number of tables discoverable in the DDIC schema.
  * @returns {Promise<{total_tables: number}>}
  */
@@ -148,6 +133,43 @@ export async function generateMart(payload) {
     const detail = body.detail;
     const message = Array.isArray(detail) ? detail.map((d) => d.msg).join("; ") : detail;
     throw new Error(message || `Request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Checks backend liveness for the topbar connection badge.
+ * @returns {Promise<{status: string, uptime_seconds: number}>}
+ */
+export async function getHealth() {
+  const response = await fetch("/api/system/health");
+  if (!response.ok) {
+    throw new Error(`Health check failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetches recent entries from the backend's in-memory log ring buffer.
+ * @param {number} [limit] - Maximum number of entries to return.
+ * @returns {Promise<{logs: Array<{timestamp: number, time_str: string, level: string, source: string, message: string}>}>}
+ */
+export async function getSystemLogs(limit = 100) {
+  const response = await fetch(`/api/system/logs?limit=${limit}`);
+  if (!response.ok) {
+    throw new Error(`Logs fetch failed (${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Empties the backend's in-memory log ring buffer.
+ * @returns {Promise<{status: string}>}
+ */
+export async function clearSystemLogs() {
+  const response = await fetch("/api/system/logs/clear", { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Clear logs failed (${response.status})`);
   }
   return response.json();
 }

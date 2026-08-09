@@ -1,6 +1,6 @@
 """Orchestration layer wiring the repository, classifier and cache together.
 
-:class:`MetadataService` is the only component :mod:`backend.main` talks to:
+:class:`MetadataService` is the only component :mod:`sap_ddic.main` talks to:
 it resolves a table name into the full JSON contract, transparently
 consulting and refreshing the local cache, and turns a search term into a
 ranked list of table matches.
@@ -10,9 +10,9 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from backend.cache import MetadataCache
-from backend.ddic_repository import DDICRepository
-from backend.heuristics import TableClassifier, classify_transaction_origin
+from sap_ddic.cache import MetadataCache
+from sap_ddic.ddic_repository import DDICRepository
+from sap_ddic.heuristics import TableClassifier, classify_transaction_origin
 
 
 class MetadataService:
@@ -46,31 +46,13 @@ class MetadataService:
 
         Args:
             term: Normalized, LIKE-escaped search term (see
-                :class:`backend.security.InputValidator.validate_search_term`).
+                :class:`sap_ddic.security.InputValidator.validate_search_term`).
 
         Returns:
             A list of ``{"table_name": ..., "description": ...}`` dicts,
             ranked with technical-name prefix matches first, capped at 15.
         """
         return self.repository.search(term)
-
-    def search_columns(self, term: str) -> list[dict[str, str]]:
-        """Searches for tables by a matching column's technical name or business text.
-
-        Slower than :meth:`search_tables` (scans every column of every
-        table), so it's a separate call rather than a fallback tier baked
-        into the main table search — the caller decides when a field-level
-        search is actually wanted.
-
-        Args:
-            term: Normalized, LIKE-escaped search term (see
-                :class:`backend.security.InputValidator.validate_search_term`).
-
-        Returns:
-            A list of ``{"table_name": ..., "description": ..., "matched_field": ...}``
-            dicts, one per table with a matching column, capped at 15.
-        """
-        return self.repository.search_by_column(term)
 
     def get_table_count(self) -> int:
         """Returns the total number of tables discoverable in the DDIC schema.
@@ -85,7 +67,7 @@ class MetadataService:
 
         Args:
             term: Normalized, LIKE-escaped search term (see
-                :class:`backend.security.InputValidator.validate_search_term`).
+                :class:`sap_ddic.security.InputValidator.validate_search_term`).
 
         Returns:
             A list of ``{"tcode": ..., "description": ...}`` dicts, ranked
@@ -98,10 +80,10 @@ class MetadataService:
 
         Args:
             tcode: Normalized technical transaction code (see
-                :class:`backend.security.InputValidator.validate_tcode`).
+                :class:`sap_ddic.security.InputValidator.validate_tcode`).
 
         Returns:
-            A dict matching the :class:`backend.schemas.TransactionContract` shape.
+            A dict matching the :class:`sap_ddic.schemas.TransactionContract` shape.
 
         Raises:
             HTTPException: With status 404 if the tcode does not exist in
@@ -131,10 +113,10 @@ class MetadataService:
 
         Args:
             table_name: Normalized technical table name (see
-                :class:`backend.security.InputValidator.validate_table_name`).
+                :class:`sap_ddic.security.InputValidator.validate_table_name`).
 
         Returns:
-            A dict matching the :class:`backend.schemas.TableContract` shape.
+            A dict matching the :class:`sap_ddic.schemas.TableContract` shape.
 
         Raises:
             HTTPException: With status 404 if the table does not exist in
@@ -160,7 +142,7 @@ class MetadataService:
             header: Result of :meth:`DDICRepository.fetch_header`.
 
         Returns:
-            A dict matching the :class:`backend.schemas.TableContract` shape.
+            A dict matching the :class:`sap_ddic.schemas.TableContract` shape.
         """
         raw_columns = self.repository.fetch_columns(table_name)
         key_fields = [c["column_name"] for c in raw_columns if c["is_primary_key"]]

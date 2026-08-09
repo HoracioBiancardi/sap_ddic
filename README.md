@@ -48,11 +48,11 @@ LOG_PATH=log/pipeline.json
 uv run ddic
 ```
 
-Equivalente a `uv run uvicorn backend.main:app --reload`, disponível como
+Equivalente a `uv run uvicorn sap_ddic.main:app --reload`, disponível como
 atalho via `[project.scripts]` no `pyproject.toml`.
 
 Acesse `http://127.0.0.1:8000/` — o próprio FastAPI serve o frontend
-(`frontend/`) e a API (`/api/*`) na mesma origem, sem necessidade de CORS.
+(`sap_ddic/frontend/`) e a API (`/api/*`) na mesma origem, sem necessidade de CORS.
 
 ## Testes
 
@@ -81,7 +81,7 @@ sap_ddic/
 │   ├── mart_generator.py   # Grafo de tabelas + joins -> SQL/YML/MD de mart fato/dimensão
 │   ├── logger.py           # Logger da aplicação
 │   └── main.py             # App FastAPI + rotas + arquivos estáticos
-├── frontend/
+├── sap_ddic/frontend/
 │   ├── index.html
 │   ├── css/styles.css
 │   └── js/
@@ -117,7 +117,7 @@ sap_ddic/
   `_LT` e a variância continuou igual dos dois lados). Buscar a cada tecla
   digitada faria disparar uma requisição lenta por pausa de digitação e
   pareceria travado. A busca só dispara no Enter/clique em "Buscar"
-  (`frontend/js/app.js::performSearch`), com um spinner "Buscando
+  (`sap_ddic/frontend/js/app.js::performSearch`), com um spinner "Buscando
   tabelas..." explícito enquanto aguarda.
 - `GET /api/table/{table_name}` — contrato completo de metadados da tabela
   (schema `SAPTableMetadata`), servido do cache local quando o `AS4DATE` da
@@ -175,7 +175,7 @@ Cada tabela também traz:
   Grande/Muito grande) **com a faixa numérica de registros entre parênteses**
   (ex.: "Média (até 2,5 milhões de registros)"), usando os limiares
   documentados no projeto irmão `datasphere-generator-dbt`
-  (`SIZE_CATEGORY_RANGES` em `frontend/js/render.js`: cat.0 até 10 mil,
+  (`SIZE_CATEGORY_RANGES` em `sap_ddic/frontend/js/render.js`: cat.0 até 10 mil,
   cat.1 até 40 mil, cat.2 até 160 mil, cat.3 até 650 mil, cat.4 até 2,5
   milhões, cat.5 até 10 milhões, cat.6 até 40 milhões, cat.7 até 160
   milhões, cat.8 até 650 milhões, cat.9 acima disso).
@@ -203,7 +203,7 @@ Flows nativos.
 
 ### Exportações
 
-Cada tela exporta só o que é dela, todas em JSON (`frontend/js/exports.js`):
+Cada tela exporta só o que é dela, todas em JSON (`sap_ddic/frontend/js/exports.js`):
 
 - **Resumo** — botão "Exportar técnico" ao lado do CTA "Ver campos e
   detalhes": objeto com `technical_class`, `table_type`, `hierarchy_type`,

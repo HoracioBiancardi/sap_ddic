@@ -17,11 +17,11 @@ parent field, ``MATNR``, only becomes known once MARA's own ordered primary
 key (``MANDT``, ``MATNR``) is matched up position-by-position.
 
 All SQL here is parameterized through
-:meth:`backend.connection.DatasphereConnector.run_query` — no user-supplied
+:meth:`sap_ddic.connection.DatasphereConnector.run_query` — no user-supplied
 value is ever interpolated directly into a query string.
 """
 
-from backend.connection import DatasphereConnector
+from sap_ddic.connection import DatasphereConnector
 
 _TABCLASS_ALIASES: dict[str, str] = {
     "POOL": "TRANSP",
@@ -287,7 +287,7 @@ class DDICRepository:
         size category, 4, while ``T006`` sits at 0), so the raw size
         category is kept alongside the delivery class rather than
         collapsing straight to a business/configuration binary — see
-        :meth:`backend.heuristics.TableClassifier.classify_relationship_importance`.
+        :meth:`sap_ddic.heuristics.TableClassifier.classify_relationship_importance`.
 
         Args:
             table_names: Distinct table names to look up.
@@ -485,13 +485,9 @@ class DDICRepository:
         neither table's technical name nor DDTEXT contains that word, (3) a
         broad substring match on the description, as a last-resort fallback.
 
-        Column-name/field-text matches are a separate, slower tier — see
-        :meth:`search_by_column` — kept out of this method so the common
-        table-name lookup never pays for a full ``DD03L`` scan.
-
         Args:
             term: Normalized, already-escaped search term (see
-                :class:`backend.security.InputValidator`).
+                :class:`sap_ddic.security.InputValidator`).
             limit: Maximum number of results to return.
 
         Returns:
@@ -562,59 +558,6 @@ class DDICRepository:
 
         return results
 
-    def search_by_column(self, term: str, limit: int = 15) -> list[dict]:
-        """Searches tables by a matching column's technical name or business text.
-
-        A single tier: matches against a column's technical name
-        (``DD03L.FIELDNAME``) or its business text (``DD04T.DDTEXT`` via
-        ``ROLLNAME``). Kept separate from :meth:`search` — this scans all of
-        ``DD03L`` (every column of every table) rather than an indexed
-        prefix on ``DD02T``, so it's the slow path and should only run when
-        the caller explicitly wants a field-level match.
-
-        Args:
-            term: Normalized, already-escaped search term (see
-                :class:`backend.security.InputValidator`).
-            limit: Maximum number of results to return.
-
-        Returns:
-            A list of dicts with ``table_name``, ``description`` and
-            ``matched_field`` (the technical field name that matched), one
-            row per table even if multiple columns matched.
-        """
-        contains = f"%{term.upper()}%"
-        results: list[dict] = []
-        seen: set[str] = set()
-
-        # LEFT JOIN DD04T because not every field has a ROLLNAME/text — a
-        # field can match purely on FIELDNAME with no business text at all.
-        # Filtering out structural include markers (FIELDNAME starting with
-        # '.') before the join matters here, unlike in fetch_columns, since
-        # this scans all of DD03L rather than one table's rows.
-        column_rows = self.connector.run_query(
-            f"SELECT F.FIELDNAME, L.TABNAME, T.DDTEXT "
-            f"FROM {self._qualified('DD03L')} F "
-            f"JOIN {self._qualified('DD02L')} L ON L.TABNAME = F.TABNAME "
-            f"JOIN {self._qualified('DD02T')} T ON T.TABNAME = L.TABNAME AND T.DDLANGUAGE = :language "
-            f"LEFT JOIN {self._qualified('DD04T')} E ON E.ROLLNAME = F.ROLLNAME AND E.DDLANGUAGE = :language "
-            f"WHERE F.FIELDNAME NOT LIKE '.%' "
-            f"  AND (F.FIELDNAME LIKE :contains ESCAPE '\\' OR UPPER(E.DDTEXT) LIKE :contains ESCAPE '\\') "
-            f"ORDER BY L.TABNAME, F.FIELDNAME LIMIT :limit",
-            {"language": self.language, "contains": contains, "limit": limit},
-        )
-        for row in column_rows:
-            if row["tabname"] not in seen and len(results) < limit:
-                results.append(
-                    {
-                        "table_name": row["tabname"],
-                        "description": row["ddtext"],
-                        "matched_field": row["fieldname"],
-                    }
-                )
-                seen.add(row["tabname"])
-
-        return results
-
     def fetch_tcode_header(self, tcode: str) -> dict | None:
         """Fetches TSTC/TADIR header attributes for a transaction code.
 
@@ -682,7 +625,7 @@ class DDICRepository:
 
         Args:
             term: Normalized, already-escaped search term (see
-                :class:`backend.security.InputValidator`).
+                :class:`sap_ddic.security.InputValidator`).
             limit: Maximum number of results to return.
 
         Returns:

@@ -93,7 +93,7 @@ class TableClassifier:
     """Infers business metadata for a DDIC table from its raw attributes.
 
     All methods are stateless and side-effect free, taking plain DDIC field
-    data (dicts/lists as returned by :class:`backend.ddic_repository.DDICRepository`)
+    data (dicts/lists as returned by :class:`sap_ddic.ddic_repository.DDICRepository`)
     and returning the classification strings used in the JSON contract.
     """
 
@@ -217,7 +217,7 @@ class TableClassifier:
 
         Args:
             columns: Column dicts as returned by
-                :meth:`backend.ddic_repository.DDICRepository.fetch_columns`.
+                :meth:`sap_ddic.ddic_repository.DDICRepository.fetch_columns`.
 
         Returns:
             A dict with ``field_count``, ``record_length_bytes`` (sum of all
@@ -287,7 +287,7 @@ class TableClassifier:
 
     # A Configuration-class table with a DD09L size category at or above this
     # threshold (per the documented TABKAT ceilings — category 3 tops out at
-    # ~650,000 rows, see frontend/js/render.js SIZE_CATEGORY_RANGES) is
+    # ~650,000 rows, see sap_ddic/frontend/js/render.js SIZE_CATEGORY_RANGES) is
     # substantial enough to rank as "Média" rather than "Baixa" — e.g.
     # J_1BTANP sits at category 4 (~2.5M rows ceiling), the same as MARA
     # itself, while a typical tiny lookup like T006 sits at 0 (~10,000 rows).
@@ -333,12 +333,12 @@ class TableClassifier:
             foreign_key_rows: Rows shaped like
                 ``{"checktable": ..., "child_field": ..., "parent_field": ...}``,
                 as returned by
-                :meth:`backend.ddic_repository.DDICRepository.fetch_foreign_keys`
+                :meth:`sap_ddic.ddic_repository.DDICRepository.fetch_foreign_keys`
                 — one row per matched key position of every foreign key
                 defined on the described table.
             parent_classes: Mapping of parent table name to
                 ``{"contflag": ..., "size_category": ...}``, as returned by
-                :meth:`backend.ddic_repository.DDICRepository.fetch_table_classes`,
+                :meth:`sap_ddic.ddic_repository.DDICRepository.fetch_table_classes`,
                 used to set ``importance``. Tables absent from this mapping
                 default to ``"Baixa"``.
 

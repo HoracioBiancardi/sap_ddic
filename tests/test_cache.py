@@ -1,8 +1,8 @@
-"""Unit tests for backend.cache.MetadataCache."""
+"""Unit tests for sap_ddic.cache.MetadataCache."""
 
 from pathlib import Path
 
-from backend.cache import MetadataCache
+from sap_ddic.cache import MetadataCache
 
 
 class TestMetadataCache:

@@ -1,4 +1,4 @@
-"""Unit tests for backend.mart_generator.
+"""Unit tests for sap_ddic.mart_generator.
 
 Fixtures are the real cached contracts in cache/*.json. BSEG (Transactional)
 has both LFA1 and MARA as real DD08L "Alta"-importance foreign keys (all
@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from backend.mart_generator import generate_mart_artifacts, suggest_mart_type
-from backend.schemas import Column, JoinFieldPair, JoinFilter, MartJoinSpec, TableContract, TechnicalStats
+from sap_ddic.mart_generator import generate_mart_artifacts, suggest_mart_type
+from sap_ddic.schemas import Column, JoinFieldPair, JoinFilter, MartJoinSpec, TableContract, TechnicalStats
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"
 

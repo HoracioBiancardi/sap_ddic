@@ -13,7 +13,7 @@ import unicodedata
 
 from fastapi import HTTPException, Path, Query
 
-from backend.schemas import MartTableNode
+from sap_ddic.schemas import MartTableNode
 
 _TABLE_NAME_RE = re.compile(r"^/?[A-Z][A-Z0-9_/]{0,29}$")
 _SEARCH_TERM_RE = re.compile(r"^[A-Z0-9_ /]{1,30}$")
@@ -107,7 +107,7 @@ class InputValidator:
 
         Args:
             tables: Raw ``{node_id, table_name}`` pairs taken from a
-                :class:`backend.schemas.MartGenerateRequest`. The same
+                :class:`sap_ddic.schemas.MartGenerateRequest`. The same
                 ``table_name`` may legitimately repeat under different
                 ``node_id``s (e.g. KNA1 as both "sold-to" and "payer") —
                 only ``node_id`` must be unique.

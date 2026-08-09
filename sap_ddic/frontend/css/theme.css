@@ -1,0 +1,183 @@
+/* =====================================================================
+   TEMAS DE CORES — portados do design system app_template
+   (SwordPower Web Starter): corporate / green-neutral / cyber-dark.
+
+   Cada bloco de tema define os tokens "novos" (--bg, --surface, --text,
+   --primary, etc.) e também redefine, como alias, os nomes de variável
+   "antigos" que graph.js/martGenerator.js/render.js/tcodeSearch.js já leem
+   via getComputedStyle() para colorir canvas/grafo (--bg-solid, --surface-1,
+   --surface-2, --text-primary, --text-secondary, --accent) — assim nenhum
+   desses módulos precisa mudar, só o valor de cada variável muda por tema.
+   O bloco --cat-* dá cores de categoria (tipo de tabela, legendas, badges
+   standard/customizada) coerentes com a paleta de cada tema.
+   ===================================================================== */
+
+body.theme-corporate {
+  --bg:              #12141a;
+  --surface:         #1a1d24;
+  --surface-alt:     #21252e;
+  --surface-hover:   #2a2f3a;
+
+  --border:          #2d323d;
+  --border-muted:    #21252e;
+  --border-bright:   #3d4452;
+
+  --primary:         #5b8def;
+  --primary-hover:   #6f9bff;
+  --primary-dim:     rgba(91, 141, 239, 0.12);
+  --primary-glow:    rgba(91, 141, 239, 0.18);
+  --glow-ring:       0 0 0 3px rgba(91, 141, 239, 0.18);
+
+  --text:            #e4e6eb;
+  --text-muted:      #9aa0ac;
+  --text-subtle:     #6b7280;
+
+  --success:         #22c55e;
+  --warn:            #f59e0b;
+  --danger:          #ef4444;
+  --danger-dim:      rgba(239, 68, 68, 0.1);
+  --info:            #3b82f6;
+
+  /* Aliases legados (lidos via getComputedStyle pelo JS de canvas/grafo) */
+  --bg-solid:        var(--bg);
+  --surface-1:       var(--surface);
+  --surface-2:       var(--surface-alt);
+  --surface-3:       var(--surface-hover);
+  --text-primary:    var(--text);
+  --text-secondary:  var(--primary-hover);
+  --accent:          var(--primary);
+  --accent-dim:      var(--primary-dim);
+  --border-strong:   var(--border-bright);
+  --glow-color:      transparent;
+  --glow-text:       none;
+
+  /* Cores de categoria (tipo de tabela, legendas, badges de origem) */
+  --cat-blue:        #60a5fa;
+  --cat-aqua:        #22d3ee;
+  --cat-violet:      #a78bfa;
+  --cat-orange:      #fb923c;
+  --cat-green:       var(--success);
+  --cat-yellow:      var(--warn);
+  --cat-red:         var(--danger);
+}
+
+body.theme-green-neutral {
+  --bg:              #0d0d0d;
+  --surface:         #161616;
+  --surface-alt:     #202020;
+  --surface-hover:   #2b2b2b;
+
+  --border:          #303030;
+  --border-muted:    #202020;
+  --border-bright:   #454545;
+
+  --primary:         #1aff80;
+  --primary-hover:   #26ff8c;
+  --primary-dim:     rgba(26, 255, 128, 0.12);
+  --primary-glow:    rgba(26, 255, 128, 0.24);
+  --glow-ring:       0 0 0 3px rgba(26, 255, 128, 0.24);
+
+  --text:            #1aff80;
+  --text-muted:      #11b857;
+  --text-subtle:     #075927;
+
+  --success:         #1aff80;
+  --warn:            #ff9900;
+  --danger:          #ff3333;
+  --danger-dim:      rgba(255, 51, 51, 0.12);
+  --info:            #00d2ff;
+
+  --r-sm:            2px;
+  --r-md:            3px;
+  --r-lg:            4px;
+
+  --bg-solid:        var(--bg);
+  --surface-1:       var(--surface);
+  --surface-2:       var(--surface-alt);
+  --surface-3:       var(--surface-hover);
+  --text-primary:    var(--text);
+  --text-secondary:  var(--text-muted);
+  --accent:          var(--primary);
+  --accent-dim:      var(--primary-dim);
+  --border-strong:   var(--border-bright);
+  --glow-color:      var(--primary-glow);
+  --glow-text:       0 0 4px var(--primary-glow);
+
+  --cat-blue:        var(--info);
+  --cat-aqua:        var(--primary);
+  --cat-violet:      #7ee0a8;
+  --cat-orange:      var(--warn);
+  --cat-green:       var(--primary);
+  --cat-yellow:      #ffcc00;
+  --cat-red:         var(--danger);
+}
+
+body.theme-green-neutral input,
+body.theme-green-neutral textarea,
+body.theme-green-neutral select,
+body.theme-green-neutral button,
+body.theme-green-neutral kbd,
+body.theme-green-neutral span:not(.brand-by-text),
+body.theme-green-neutral div:not(.brand-by),
+body.theme-green-neutral p,
+body.theme-green-neutral h1,
+body.theme-green-neutral h2,
+body.theme-green-neutral h3,
+body.theme-green-neutral h4,
+body.theme-green-neutral h5,
+body.theme-green-neutral h6,
+body.theme-green-neutral a,
+body.theme-green-neutral li,
+body.theme-green-neutral td,
+body.theme-green-neutral th,
+body.theme-green-neutral pre,
+body.theme-green-neutral code {
+  font-family: 'Share Tech Mono', ui-monospace, 'SFMono-Regular', monospace !important;
+}
+
+body.theme-cyber-dark {
+  --bg:              #080914;
+  --surface:         #0f1123;
+  --surface-alt:     #171936;
+  --surface-hover:   #21244d;
+
+  --border:          #282c5e;
+  --border-muted:    #171936;
+  --border-bright:   #404694;
+
+  --primary:         #8b5cf6;
+  --primary-hover:   #a78bfa;
+  --primary-dim:     rgba(139, 92, 246, 0.15);
+  --primary-glow:    rgba(139, 92, 246, 0.25);
+  --glow-ring:       0 0 0 3px rgba(139, 92, 246, 0.25);
+
+  --text:            #f3f4f6;
+  --text-muted:      #9ca3af;
+  --text-subtle:     #6b7280;
+
+  --success:         #06b6d4;
+  --warn:            #f59e0b;
+  --danger:          #ec4899;
+  --danger-dim:      rgba(236, 72, 153, 0.12);
+  --info:            #3b82f6;
+
+  --bg-solid:        var(--bg);
+  --surface-1:       var(--surface);
+  --surface-2:       var(--surface-alt);
+  --surface-3:       var(--surface-hover);
+  --text-primary:    var(--text);
+  --text-secondary:  var(--primary-hover);
+  --accent:          var(--primary);
+  --accent-dim:      var(--primary-dim);
+  --border-strong:   var(--border-bright);
+  --glow-color:      var(--primary-glow);
+  --glow-text:       0 0 4px var(--primary-glow);
+
+  --cat-blue:        var(--info);
+  --cat-aqua:        var(--success);
+  --cat-violet:      var(--primary);
+  --cat-orange:      var(--warn);
+  --cat-green:       var(--success);
+  --cat-yellow:      #fbbf24;
+  --cat-red:         var(--danger);
+}

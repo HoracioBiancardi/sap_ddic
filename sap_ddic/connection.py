@@ -13,8 +13,8 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy import create_engine
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from backend.config import Settings
-from backend.logger import get_logger
+from sap_ddic.config import Settings
+from sap_ddic.logger import get_logger
 
 logger = get_logger()
 

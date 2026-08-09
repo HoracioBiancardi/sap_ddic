@@ -2,7 +2,7 @@
 
 These models mirror the ``SAPTableMetadata`` JSON schema exactly and are used
 both as FastAPI ``response_model``s (enforcing the contract on every
-response) and as the return type of :class:`backend.service.MetadataService`.
+response) and as the return type of :class:`sap_ddic.service.MetadataService`.
 """
 
 from typing import Literal
@@ -33,7 +33,7 @@ class ParentTable(BaseModel):
             real entity relationship); otherwise ``"Média"`` or ``"Baixa"``
             depending on how substantial the Configuration-class
             domain/value-help lookup is (its own DD09L size category) — see
-            :meth:`backend.heuristics.TableClassifier.classify_relationship_importance`.
+            :meth:`sap_ddic.heuristics.TableClassifier.classify_relationship_importance`.
         foreign_key_fields: Field-level mappings composing the relationship.
     """
 
@@ -122,7 +122,7 @@ class TableContract(BaseModel):
         business_description: Business-friendly table description.
         technical_class: DDIC table class (TABCLASS).
         table_type: Business classification inferred by
-            :class:`backend.heuristics.TableClassifier`.
+            :class:`sap_ddic.heuristics.TableClassifier`.
         hierarchy_type: Header/item/standalone classification inferred by
             the same classifier.
         associated_text_table: Technical name of the table's text table, if
@@ -286,12 +286,12 @@ class MartGenerateRequest(BaseModel):
         root_node: ``node_id`` of the box that anchors the SQL's ``FROM``
             clause. Every other box must be reachable from it by following
             ``joins`` (in either direction) — see
-            :mod:`backend.mart_generator`.
+            :mod:`sap_ddic.mart_generator`.
         joins: Every edge connecting the boxes, auto-detected or manual.
         mart_type: Overrides the auto-suggested ``FCT``/``DIM`` role
             (defaults to the root table's own ``table_type``).
         source_name: Optional override for the dbt source name (see
-            :func:`backend.main.get_table_dbt_artifacts` for why it defaults
+            :func:`sap_ddic.main.get_table_dbt_artifacts` for why it defaults
             to the resolved schema rather than a fixed name).
         database: Optional override for the documentation's database.
         dbt_schema: Optional override for the yml/SQL schema.
@@ -324,7 +324,7 @@ class MartArtifacts(BaseModel):
             order), all columns from every table in the graph (the root's
             unprefixed, every other table's prefixed by its join alias).
             Always a full ``materialized="table"`` rebuild — no incremental
-            variant, see :mod:`backend.mart_generator`.
+            variant, see :mod:`sap_ddic.mart_generator`.
         yml: The model-level ``models:`` YAML block documenting every output
             column (as opposed to :class:`DbtArtifacts.yml`, which documents
             a raw ``sources:`` table).
@@ -372,14 +372,10 @@ class SearchResult(BaseModel):
     Attributes:
         table_name: Technical table name.
         description: Business-friendly table description.
-        matched_field: Technical field name that matched, present only for
-            column/field-text hits — absent for table name/description/
-            domain matches.
     """
 
     table_name: str
     description: str
-    matched_field: str | None = None
 
 
 class TransactionSearchResult(BaseModel):
@@ -406,7 +402,7 @@ class TransactionContract(BaseModel):
             has no TADIR entry.
         classification: ``"Standard"`` for an SAP-delivered package,
             ``"Customizada"`` for a customer package (``Y*``/``Z*``) — see
-            :func:`backend.heuristics.classify_transaction_origin`.
+            :func:`sap_ddic.heuristics.classify_transaction_origin`.
     """
 
     tcode: str

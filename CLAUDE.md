@@ -21,20 +21,22 @@ Não há suíte de testes para o frontend (JS puro, sem build step, sem framewor
 
 ## Arquitetura
 
-Backend em camadas, cada uma só falando com a de baixo — `main.py` (rotas
-FastAPI) é o único ponto de entrada, e só conversa com `MetadataService`:
+Backend em camadas, cada uma só falando com a de baixo. `main.py` só monta o
+`FastAPI()`, constrói o `MetadataService` uma vez no `_lifespan` e inclui os
+routers de `sap_ddic/routers/` — as rotas em si vivem lá, uma por domínio:
 
 ```
-main.py (rotas HTTP, DI)
-  -> security.py       (valida table_name/search term ANTES de qualquer I/O)
-  -> service.py         (MetadataService: orquestra tudo abaixo)
-       -> cache.py       (MetadataCache: lê/grava cache/{table}.json, invalida por AS4DATE)
+routers/{search,tables,tcode,mart,system}.py (rotas HTTP, um APIRouter por domínio)
+  -> dependencies.py    (get_service: lê o MetadataService de request.app.state)
+  -> security.py         (valida table_name/search term ANTES de qualquer I/O)
+  -> service.py           (MetadataService: orquestra tudo abaixo)
+       -> cache.py         (MetadataCache: lê/grava cache/{table}.json, invalida por AS4DATE)
        -> ddic_repository.py (DDICRepository: SQL parametrizado contra o schema DDIC replicado)
             -> connection.py (DatasphereConnector: engine SQLAlchemy + retry/tenacity sobre HANA)
-       -> heuristics.py  (TableClassifier: regras de classificação, puras, sem I/O — testadas com fixtures)
-  -> dbt_generator.py    (TableContract -> SQL/YML de staging dbt para 1 tabela)
-  -> mart_generator.py   (grafo de tabelas + joins -> SQL/YML/MD de um mart fact/dim)
-  -> schemas.py          (contrato Pydantic single-source-of-truth de toda a API)
+       -> heuristics.py    (TableClassifier: regras de classificação, puras, sem I/O — testadas com fixtures)
+  -> dbt_generator.py      (TableContract -> SQL/YML de staging dbt para 1 tabela; routers/tables.py)
+  -> mart_generator.py     (grafo de tabelas + joins -> SQL/YML/MD de um mart fact/dim; routers/mart.py)
+  -> schemas.py            (contrato Pydantic single-source-of-truth de toda a API)
 ```
 
 `MetadataService.get_table_contract` é o método central: busca o header,
@@ -43,6 +45,14 @@ o contrato completo (colunas, FKs, stats técnicas) via `DDICRepository`
 quando necessário. `security.py` roda como dependency do FastAPI *antes*
 desse fluxo — um `table_name` validado é seguro tanto para bind de SQL
 quanto para path de arquivo de cache (`cache/{table_name}.json`).
+
+`routers/system.py` expõe `GET /api/system/health` (badge de conexão do
+topbar) e `GET /api/system/logs`/`POST /api/system/logs/clear`, lendo de um
+ring buffer em memória (`logger.BufferHandler`, `maxlen=500`) anexado como
+handler extra em `logger.get_logger()` — todo `logger.info/warning/error` já
+emitido em qualquer módulo (`cache.py`, `service.py`, `ddic_repository.py`,
+`connection.py`, os próprios routers) alimenta esse buffer automaticamente,
+sem precisar instrumentar chamadas separadas.
 
 `table_name` usa o conversor `:path` nas rotas (não o matcher padrão de
 segmento único), porque nomes de objeto namespaced do SAP (ex.:
@@ -85,16 +95,32 @@ correspondem à intuição, ex.: tabelas de ordem de produção usam
 
 HTML/CSS/JS puro (sem framework, sem build step), servido como estático pelo
 próprio FastAPI (`app.mount("/", StaticFiles(...))`), mesma origem da API —
-não há CORS a configurar. `frontend/js/state.js` guarda o estado
+não há CORS a configurar. `sap_ddic/frontend/js/state.js` guarda o estado
 compartilhado (tabela atual, contrato); `app.js` é o entrypoint que conecta
 os demais módulos (`views.js` navegação, `render.js` renderização de
 cards/tabelas, `graph.js` grafo de linhagem via vis-network, `dbtGenerator.js`
 e `martGenerator.js` as telas dos dois geradores dbt, `exports.js` recortes
-de exportação JSON, `jsonViewer.js` syntax highlight via Prism).
+de exportação JSON, `jsonViewer.js` syntax highlight via Prism, `prefs.js`
+tema persistido em `localStorage`, `toast.js` notificação transiente).
+
+O design system (`css/theme.css` + `css/styles.css`) é portado do
+`app_template` (starter kit irmão do ecossistema pessoal "SwordPower"):
+topbar + activity bar (a antiga `.sidebar` de 240px virou uma trilha de
+ícones de 64px) + cards com sombra + 3 temas trocáveis pelo modal de
+Configurações (`corporate`/`green-neutral`/`cyber-dark`, padrão
+`cyber-dark`) via `body.theme-*`. `graph.js`/`martGenerator.js`/`render.js`/
+`tcodeSearch.js` colorem canvas/grafo lendo variáveis CSS "antigas"
+(`--bg-solid`, `--surface-1/2`, `--text-primary/secondary`, `--accent`,
+`--cat-*`) via `getComputedStyle()` — `theme.css` redefine essas variáveis
+como alias dos tokens novos (`--bg`, `--surface`, `--text`, `--primary`,
+etc.) em cada bloco de tema, então esses módulos não precisam saber que o
+design system mudou. Ao trocar de tema depois que o grafo/canvas já
+renderizou, `app.js::redrawThemedCanvases()` os redesenha (as cores são lidas
+uma vez, no momento do desenho, e ficam "gravadas" no `vis.DataSet`).
 
 ### Config e segredos
 
-`backend/config.py::Settings` lê `.env` via `pydantic-settings`
+`sap_ddic/config.py::Settings` lê `.env` via `pydantic-settings`
 (`HANA_ADDRESS`, `HANA_PORT`, `HANA_USER`, `HANA_PASSWORD`, `DDIC_SCHEMA`,
 `DDIC_LANGUAGE`, mais defaults de dbt como `DBT_DATABASE`/`DBT_SCHEMA`). O
 `.env` deste repositório contém credenciais reais de um schema SAP

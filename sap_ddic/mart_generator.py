@@ -4,7 +4,7 @@ SQL JOIN, its model-level YAML doc, and a separate human-readable Markdown
 document (Mermaid diagram of the whole graph + per-table summary + the SQL
 itself).
 
-A box's ``node_id`` (see :class:`backend.schemas.MartTableNode`) is what
+A box's ``node_id`` (see :class:`sap_ddic.schemas.MartTableNode`) is what
 identifies it in the graph and becomes its SQL alias — not its
 ``table_name`` — because the *same* SAP table can legitimately appear as two
 independent boxes with two independent roles. This isn't a hypothetical:
@@ -25,7 +25,7 @@ to hand-wire those edges explicitly, with an optional field/value filter
 (e.g. VBFA's ``VBTYP_N = 'J'``).
 
 Reuses the exact same per-column type-mapping/macro/alias logic as
-:mod:`backend.dbt_generator` (``_col_to_macro``, ``_map_column_type``,
+:mod:`sap_ddic.dbt_generator` (``_col_to_macro``, ``_map_column_type``,
 ``_quote_if_needed``, ``_build_alias_map``, ``_esc``) so a column renders
 identically whether it ends up in a single-table staging model or a
 multi-table mart.
@@ -43,8 +43,8 @@ it.
 from collections import deque
 from dataclasses import dataclass
 
-from backend.dbt_generator import _build_alias_map, _col_to_macro, _esc, _map_column_type, _quote_if_needed
-from backend.schemas import JoinFilter, MartArtifacts, MartJoinSpec, TableContract
+from sap_ddic.dbt_generator import _build_alias_map, _col_to_macro, _esc, _map_column_type, _quote_if_needed
+from sap_ddic.schemas import JoinFilter, MartArtifacts, MartJoinSpec, TableContract
 
 # A joined box this wide probably shouldn't have every column brought across
 # uncurated — the caller gets a warning, not a hard limit, since guessing
@@ -69,7 +69,7 @@ def suggest_mart_type(root_contract: TableContract) -> str:
     """Suggests ``"FCT"`` for a Transactional root table, ``"DIM"`` otherwise.
 
     Mirrors the same Master Data / Transactional split already computed by
-    :meth:`backend.heuristics.TableClassifier.classify_table_type` — a
+    :meth:`sap_ddic.heuristics.TableClassifier.classify_table_type` — a
     document/movement table is fact-shaped, everything else (master data,
     configuration, unknown) is dimension-shaped.
     """
@@ -487,7 +487,7 @@ def generate_mart_artifacts(
         use_business_alias: If True, every column's output alias (both in
             the SQL and the yml column list) is a short slug of its business
             description instead of the raw SAP field name — see
-            :func:`backend.dbt_generator._business_alias`. Each box (root or
+            :func:`sap_ddic.dbt_generator._business_alias`. Each box (root or
             joined) gets its own collision-safe alias resolution, since
             joined-box columns are already disambiguated by their
             ``{node_id}_`` prefix.

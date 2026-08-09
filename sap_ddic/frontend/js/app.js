@@ -3,21 +3,20 @@
  * topbar search + swappable content view) together.
  */
 
-import { getStats, getTable, searchColumns, searchTables } from "./api.js";
+import { clearSystemLogs, getHealth, getStats, getSystemLogs, getTable, searchTables } from "./api.js";
 import { generateInitialDbtArtifacts, initDbtGenerator, resetDbtGenerator } from "./dbtGenerator.js";
 import { initExportButtons } from "./exports.js";
 import { renderLineageGraph } from "./graph.js";
 import { initJsonToolbar, renderJson } from "./jsonViewer.js";
 import { initMartGenerator, refreshCanvasTheme } from "./martGenerator.js";
+import { applyPrefsOnBoot, getTheme, setTheme } from "./prefs.js";
 import { renderColumnsTable, renderEnumModal, renderSummary, renderRelations } from "./render.js";
 import { state } from "./state.js";
 import { initTcodeSearch } from "./tcodeSearch.js";
+import { toast } from "./toast.js";
 import {
-  clearColumnSearchError,
   clearSearchError,
   getActiveView,
-  hideColumnSearchLoading,
-  hideColumnSearchResultsCount,
   hideSearchLoading,
   hideSearchResultsCount,
   hideTableFetchLoading,
@@ -26,9 +25,6 @@ import {
   resetToHome,
   setBackAvailable,
   setTopbarTable,
-  showColumnSearchError,
-  showColumnSearchLoading,
-  showColumnSearchResultsCount,
   showSearchError,
   showSearchLoading,
   showSearchResultsCount,
@@ -40,9 +36,6 @@ import {
 const searchInput = document.getElementById("search-input");
 const btnSearch = document.getElementById("btn-search");
 const searchResultsList = document.getElementById("autocomplete-list");
-const columnSearchInput = document.getElementById("column-search-input");
-const btnColumnSearch = document.getElementById("btn-column-search");
-const columnSearchResultsList = document.getElementById("column-autocomplete-list");
 const fieldFilterInput = document.getElementById("field-filter-input");
 const chkShowAllLineage = document.getElementById("chk-show-all-lineage");
 const lineageToggleLabel = document.getElementById("lineage-toggle-label");
@@ -133,10 +126,6 @@ function initConfigPage() {
   const useDbtCheck = document.getElementById("config-generate-with-dbt");
   const useBusinessAliasCheck = document.getElementById("config-use-business-alias");
 
-  const themeSelect = document.getElementById("config-ui-theme");
-  const scanlinesCheck = document.getElementById("config-ui-scanlines");
-  const flickerCheck = document.getElementById("config-ui-flicker");
-
   const tempStagingSql = document.getElementById("temp-staging-sql");
   const tempStagingYml = document.getElementById("temp-staging-yml");
   const tempMartSql = document.getElementById("temp-mart-sql");
@@ -155,13 +144,6 @@ function initConfigPage() {
   useDbtCheck.checked = localStorage.getItem("dbt_enabled") !== "false";
   useBusinessAliasCheck.checked = localStorage.getItem("use_business_alias") === "true";
 
-  themeSelect.value = localStorage.getItem("ui_theme") || "green";
-  scanlinesCheck.checked = localStorage.getItem("ui_scanlines") !== "false";
-  flickerCheck.checked = localStorage.getItem("ui_flicker") !== "false";
-
-  // Apply UI settings immediately
-  applyUiSettings();
-
   // Load templates
   tempStagingSql.value = localStorage.getItem("temp_staging_sql") || DEFAULT_STAGING_SQL;
   tempStagingYml.value = localStorage.getItem("temp_staging_yml") || DEFAULT_STAGING_YML;
@@ -175,16 +157,11 @@ function initConfigPage() {
     localStorage.setItem("dbt_use_macros", useMacrosCheck.checked);
     localStorage.setItem("dbt_enabled", useDbtCheck.checked);
     localStorage.setItem("use_business_alias", useBusinessAliasCheck.checked);
-    localStorage.setItem("ui_theme", themeSelect.value);
-    localStorage.setItem("ui_scanlines", scanlinesCheck.checked);
-    localStorage.setItem("ui_flicker", flickerCheck.checked);
 
     localStorage.setItem("temp_staging_sql", tempStagingSql.value);
     localStorage.setItem("temp_staging_yml", tempStagingYml.value);
     localStorage.setItem("temp_mart_sql", tempMartSql.value);
     localStorage.setItem("temp_mart_yml", tempMartYml.value);
-
-    applyUiSettings();
 
     const status = document.getElementById("config-save-status");
     status.classList.remove("hidden");
@@ -202,23 +179,120 @@ function initConfigPage() {
   });
 }
 
-function applyUiSettings() {
-  const theme = localStorage.getItem("ui_theme") || "green";
-  const scanlines = localStorage.getItem("ui_scanlines") !== "false";
-  const flicker = localStorage.getItem("ui_flicker") !== "false";
-
-  document.body.className = `theme-${theme}`;
-  document.body.classList.toggle("crt-enabled", scanlines);
-  document.body.classList.toggle("flicker-enabled", flicker);
-
-  // Node/edge colors are read from CSS variables once, at draw time, and
-  // baked into the vis.DataSet — switching theme afterward otherwise leaves
-  // an already-rendered graph/canvas showing the previous theme's colors.
+/**
+ * Redraws anything that bakes CSS variable colors into a canvas at render
+ * time (vis-network lineage graph, mart builder canvas) — switching theme
+ * afterward otherwise leaves an already-rendered graph showing the
+ * previous theme's colors, since those colors are read once via
+ * getComputedStyle() rather than tracked live.
+ */
+function redrawThemedCanvases() {
   if (state.contract && lineageRendered) {
     renderLineageGraph(state.contract, { showAll: chkShowAllLineage.checked, onNodeClick: goToTable });
   }
   refreshCanvasTheme();
 }
+
+// ── Settings modal (tema) ──────────────────────────────────────────
+const settingsOverlay = document.getElementById("settings-overlay");
+const settingsThemeSelect = document.getElementById("settings-theme");
+
+function openSettingsModal() {
+  settingsThemeSelect.value = getTheme();
+  settingsOverlay.classList.add("open");
+}
+
+function closeSettingsModal() {
+  settingsOverlay.classList.remove("open");
+}
+
+settingsThemeSelect.addEventListener("change", () => {
+  setTheme(settingsThemeSelect.value);
+  redrawThemedCanvases();
+});
+
+document.getElementById("btn-open-settings").addEventListener("click", openSettingsModal);
+document.getElementById("btn-close-settings").addEventListener("click", closeSettingsModal);
+document.getElementById("btn-done-settings").addEventListener("click", closeSettingsModal);
+settingsOverlay.addEventListener("click", (event) => {
+  if (event.target === settingsOverlay) closeSettingsModal();
+});
+
+// ── Connection badge (health check) ────────────────────────────────
+const connBadge = document.getElementById("conn-badge");
+
+async function checkConnection() {
+  try {
+    await getHealth();
+    connBadge.textContent = "online";
+    connBadge.classList.add("online");
+  } catch {
+    connBadge.textContent = "offline";
+    connBadge.classList.remove("online");
+  }
+}
+
+// ── Painel de logs do sistema (view Configurações) ─────────────────
+const systemLogTerminal = document.getElementById("system-log-terminal");
+let logsPollTimer = null;
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderSystemLogs(logs) {
+  if (logs.length === 0) {
+    systemLogTerminal.innerHTML = '<span class="text-subtle">Nenhum log registrado ainda...</span>';
+    return;
+  }
+  systemLogTerminal.innerHTML = logs
+    .map(
+      (entry) => `
+        <div class="log-line">
+          <span class="log-time">${escapeHtml(entry.time_str)}</span>
+          <span class="log-level log-level--${escapeHtml(entry.level.toLowerCase())}">${escapeHtml(entry.level)}</span>
+          <span class="log-source">${escapeHtml(entry.source)}</span>
+          <span class="log-message">${escapeHtml(entry.message)}</span>
+        </div>`
+    )
+    .join("");
+  systemLogTerminal.scrollTop = systemLogTerminal.scrollHeight;
+}
+
+async function refreshSystemLogs() {
+  try {
+    const { logs } = await getSystemLogs(200);
+    renderSystemLogs(logs);
+  } catch (error) {
+    systemLogTerminal.innerHTML = `<span class="log-level log-level--error">Falha ao carregar logs: ${error.message}</span>`;
+  }
+}
+
+function startLogsPolling() {
+  refreshSystemLogs();
+  stopLogsPolling();
+  logsPollTimer = setInterval(refreshSystemLogs, 5000);
+}
+
+function stopLogsPolling() {
+  clearInterval(logsPollTimer);
+  logsPollTimer = null;
+}
+
+document.getElementById("btn-refresh-logs").addEventListener("click", refreshSystemLogs);
+document.getElementById("btn-clear-logs").addEventListener("click", async () => {
+  try {
+    await clearSystemLogs();
+    await refreshSystemLogs();
+    toast("Logs limpos.", "info");
+  } catch (error) {
+    toast(error.message || "Erro ao limpar logs.", "error");
+  }
+});
 
 function renderSearchResults(results) {
   if (results.length === 0) {
@@ -233,10 +307,7 @@ function renderSearchResults(results) {
       (row) => `
         <li class="autocomplete-item" data-table-name="${row.table_name}">
           <span class="table-name">${row.table_name}</span>
-          <span class="table-desc">
-            ${row.description}
-            ${row.matched_field ? `<span class="matched-field">campo: ${row.matched_field}</span>` : ""}
-          </span>
+          <span class="table-desc">${row.description}</span>
         </li>`
     )
     .join("");
@@ -276,65 +347,6 @@ async function performSearch() {
   } finally {
     hideSearchLoading();
     btnSearch.disabled = false;
-  }
-}
-
-function renderColumnSearchResults(results) {
-  if (results.length === 0) {
-    columnSearchResultsList.classList.add("hidden");
-    columnSearchResultsList.innerHTML = "";
-    hideColumnSearchResultsCount();
-    return;
-  }
-
-  columnSearchResultsList.innerHTML = results
-    .map(
-      (row) => `
-        <li class="autocomplete-item" data-table-name="${row.table_name}">
-          <span class="table-name">${row.table_name}</span>
-          <span class="table-desc">
-            ${row.description}
-            ${row.matched_field ? `<span class="matched-field">campo: ${row.matched_field}</span>` : ""}
-          </span>
-        </li>`
-    )
-    .join("");
-  columnSearchResultsList.classList.remove("hidden");
-  showColumnSearchResultsCount(results.length);
-
-  columnSearchResultsList.querySelectorAll(".autocomplete-item").forEach((item) => {
-    item.addEventListener("click", () => {
-      searchInput.value = item.dataset.tableName;
-      columnSearchResultsList.classList.add("hidden");
-      tableHistory = [];
-      setBackAvailable(false);
-      selectTable(item.dataset.tableName);
-    });
-  });
-}
-
-async function performColumnSearch() {
-  const term = columnSearchInput.value.trim();
-  if (!term) {
-    return;
-  }
-
-  clearColumnSearchError();
-  renderColumnSearchResults([]);
-  showColumnSearchLoading();
-  btnColumnSearch.disabled = true;
-
-  try {
-    const results = await searchColumns(term);
-    renderColumnSearchResults(results);
-    if (results.length === 0) {
-      showColumnSearchError("Nenhuma coluna encontrada para esse termo.");
-    }
-  } catch (error) {
-    showColumnSearchError(error.message || "Erro ao buscar colunas.");
-  } finally {
-    hideColumnSearchLoading();
-    btnColumnSearch.disabled = false;
   }
 }
 
@@ -424,29 +436,17 @@ searchInput.addEventListener("keydown", (event) => {
   }
 });
 
-btnColumnSearch.addEventListener("click", performColumnSearch);
-
-columnSearchInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    performColumnSearch();
-  }
-});
-
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".topbar-search")) {
     searchResultsList.classList.add("hidden");
-    columnSearchResultsList.classList.add("hidden");
   }
 });
 
 navHomeItem.addEventListener("click", () => {
   tableHistory = [];
   searchInput.value = "";
-  columnSearchInput.value = "";
   clearSearchError();
-  clearColumnSearchError();
   renderSearchResults([]);
-  renderColumnSearchResults([]);
   resetToHome();
   searchInput.focus();
 });
@@ -457,6 +457,11 @@ initNav((viewName) => {
   if (viewName === "dbt" && !dbtRendered && state.contract) {
     generateInitialDbtArtifacts(state.contract.table_name);
     dbtRendered = true;
+  }
+  if (viewName === "config") {
+    startLogsPolling();
+  } else {
+    stopLogsPolling();
   }
 });
 
@@ -514,6 +519,10 @@ initDbtGenerator(() => state.currentTable);
 initMartGenerator();
 initConfigPage();
 initTcodeSearch();
+
+applyPrefsOnBoot();
+checkConnection();
+setInterval(checkConnection, 15000);
 
 getStats()
   .then((stats) => showTableCount(stats.total_tables))

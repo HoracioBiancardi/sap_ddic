@@ -6,10 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
   <title>SAP Metadata Discovery</title>
-  <link rel="stylesheet" href="css/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/theme.css" />
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
@@ -19,12 +20,17 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 
-<body class="crt-enabled flicker-enabled theme-green">
-  <div class="crt-overlay"></div>
+<body class="theme-cyber-dark">
+  <div class="aurora">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+  </div>
 
   <div class="app-shell">
     <aside class="sidebar" aria-label="Navegação principal">
-      <div class="sidebar-logo" aria-hidden="true">❯_ SWORDPOWER</div>
+      <div class="sidebar-logo" aria-hidden="true">SAP DDIC</div>
       <nav class="sidebar-nav">
         <button class="nav-item active" data-view="home" data-tooltip="Início / Nova busca" type="button"
           aria-label="Início">
@@ -97,6 +103,19 @@
         </div>
 
         <div id="topbar-search-slot" class="search-slot"></div>
+
+        <div class="topbar-right">
+          <span id="conn-badge" class="conn-badge">offline</span>
+          <button id="btn-open-settings" class="icon-btn" type="button" title="Configurações de aparência">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
+              <path
+                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+                stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            </svg>
+            Aparência
+          </button>
+        </div>
       </header>
 
       <main class="content">
@@ -127,21 +146,6 @@
                 <p id="search-results-count" class="search-results-count hidden"></p>
                 <ul id="autocomplete-list" class="autocomplete-list hidden"></ul>
                 <p id="search-error" class="search-error hidden"></p>
-
-                <div class="search-input-row column-search-row">
-                  <input type="text" id="column-search-input" class="search-input"
-                    placeholder="BUSCAR PELO NOME DE UMA COLUNA (EX: MATNR, KUNNR...)" autocomplete="off" />
-                  <button id="btn-column-search" class="primary-button search-submit-button" type="button">
-                    BUSCAR COLUNA
-                  </button>
-                </div>
-                <div id="column-search-loading" class="search-inline-status hidden">
-                  <span class="spinner" aria-hidden="true"></span>
-                  <span>[!] SCANNING DD03L FOR MATCHING COLUMNS...</span>
-                </div>
-                <p id="column-search-results-count" class="search-results-count hidden"></p>
-                <ul id="column-autocomplete-list" class="autocomplete-list hidden"></ul>
-                <p id="column-search-error" class="search-error hidden"></p>
               </div>
             </div>
             <div class="hero-feature-grid">
@@ -387,7 +391,8 @@
         <section id="view-config" class="view hidden">
           <div class="page-title-block">
             <h2>[5] CONFIGURAÇÕES E TEMPLATES</h2>
-            <p>Personalize as definições padrão de geração do dbt e a aparência do terminal Pip-Boy.</p>
+            <p>Personalize as definições padrão de geração do dbt e acompanhe os logs do backend em tempo real. O tema
+              da interface fica em "Aparência", no topo da tela.</p>
           </div>
 
           <div class="config-grid">
@@ -420,26 +425,16 @@
             </div>
 
             <div class="config-card terminal-card">
-              <h3 class="config-section-title">❯ APARÊNCIA TERMINAL CRT</h3>
-              <div class="config-form">
-                <label class="dbt-field">
-                  <span>Tema de Cor</span>
-                  <select id="config-ui-theme">
-                    <option value="green">Verde Fósforo (Classic Pip-Boy)</option>
-                    <option value="amber">Âmbar Radiação (Fallout NV)</option>
-                    <option value="blue">Azul HUD (Fallout 4)</option>
-                    <option value="white">Branco Monocromático (Vintage Terminal)</option>
-                    <option value="corporate">Corporativo (Dark Neutro, sem efeitos CRT)</option>
-                  </select>
-                </label>
-                <label class="config-checkbox-label">
-                  <input type="checkbox" id="config-ui-scanlines" checked />
-                  <span>Ativar linhas de varredura (Scanlines CRT)</span>
-                </label>
-                <label class="config-checkbox-label">
-                  <input type="checkbox" id="config-ui-flicker" checked />
-                  <span>Ativar cintilação sutil da tela (Flicker)</span>
-                </label>
+              <div class="relations-header" style="border:0;padding:0;margin-bottom:.85rem">
+                <h3 class="config-section-title" style="margin:0;border:0;padding:0">❯ LOGS DO SISTEMA</h3>
+                <div>
+                  <button id="btn-refresh-logs" class="toolbar-button" type="button">Atualizar</button>
+                  <button id="btn-clear-logs" class="toolbar-button" type="button">Limpar</button>
+                </div>
+              </div>
+              <p class="templates-hint">Últimos eventos do backend (ring buffer em memória, até 500 entradas).</p>
+              <div id="system-log-terminal" class="terminal-box">
+                <span class="text-subtle">Carregando logs…</span>
               </div>
             </div>
           </div>
@@ -563,6 +558,31 @@
       </div>
     </div>
   </dialog>
+
+  <!-- Modal de Configurações de Aparência -->
+  <div class="overlay" id="settings-overlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h2>Configurações de Aparência</h2>
+        <button class="close-btn" id="btn-close-settings" type="button">X</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Tema da Interface</label>
+          <select id="settings-theme" class="form-input">
+            <option value="cyber-dark">Cyber Dark (Neon Violeta)</option>
+            <option value="corporate">Corporativo (Dark Neutro)</option>
+            <option value="green-neutral">Verde Neutro (Terminal)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btn-done-settings" type="button" style="width:100%;justify-content:center">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
 
   <script type="module" src="js/app.js"></script>
 </body>
