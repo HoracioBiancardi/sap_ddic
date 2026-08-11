@@ -4,6 +4,7 @@ import time
 
 from fastapi import APIRouter, Query
 
+from sap_ddic.config import get_settings
 from sap_ddic.logger import get_log_buffer
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -19,6 +20,24 @@ def health_check() -> dict:
         A status payload with the current uptime in seconds.
     """
     return {"status": "ok", "uptime_seconds": round(time.time() - _START_TIME, 2)}
+
+
+@router.get("/metrics")
+def get_metrics() -> dict:
+    """Reports non-sensitive operational settings alongside process uptime.
+
+    Returns:
+        A payload with uptime, the target DDIC schema/language and the
+        configured log level — never the HANA host or credentials.
+    """
+    settings = get_settings()
+    return {
+        "uptime_seconds": round(time.time() - _START_TIME, 2),
+        "app_name": "SAP Metadata Discovery API",
+        "ddic_schema": settings.ddic_schema,
+        "ddic_language": settings.ddic_language,
+        "log_level": settings.log_level,
+    }
 
 
 @router.get("/logs")

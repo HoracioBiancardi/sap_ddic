@@ -19,6 +19,7 @@ ddic = "sap_ddic.main:run"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "httpx>=0.27.0",
 ]
 
 [build-system]

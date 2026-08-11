@@ -47,12 +47,17 @@ desse fluxo — um `table_name` validado é seguro tanto para bind de SQL
 quanto para path de arquivo de cache (`cache/{table_name}.json`).
 
 `routers/system.py` expõe `GET /api/system/health` (badge de conexão do
-topbar) e `GET /api/system/logs`/`POST /api/system/logs/clear`, lendo de um
-ring buffer em memória (`logger.BufferHandler`, `maxlen=500`) anexado como
-handler extra em `logger.get_logger()` — todo `logger.info/warning/error` já
-emitido em qualquer módulo (`cache.py`, `service.py`, `ddic_repository.py`,
+topbar), `GET /api/system/metrics` (uptime + `ddic_schema`/`ddic_language`/
+`log_level` — nunca `hana_address`/`hana_password`) e `GET /api/system/logs`/
+`POST /api/system/logs/clear`, lendo de um ring buffer em memória
+(`logger.BufferHandler`, `maxlen=500`) anexado como handler extra em
+`logger.get_logger()` — todo `logger.info/warning/error` já emitido em
+qualquer módulo (`cache.py`, `service.py`, `ddic_repository.py`,
 `connection.py`, os próprios routers) alimenta esse buffer automaticamente,
-sem precisar instrumentar chamadas separadas.
+sem precisar instrumentar chamadas separadas. Esse padrão (handler de
+`logging` anexado, capturando todo módulo automaticamente) foi portado para
+o `log_buffer_service.py` do `app_template` e dos demais projetos do
+ecossistema — este projeto é a origem do padrão, não uma cópia dele.
 
 `table_name` usa o conversor `:path` nas rotas (não o matcher padrão de
 segmento único), porque nomes de objeto namespaced do SAP (ex.:
